@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release_Kerbalism" />
+    <BuildType Name="Release_NoKerbalism" />
+  </Configurations>
+  <Project Path="SpaceWeatherAndAtmosphericOrbitalDecay.csproj" Id="888b5157-da4f-4daa-890e-be523dc5c300" />
+</Solution>
