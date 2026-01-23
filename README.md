@@ -26,7 +26,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 ## ✨ Features
 
 *   **🪐 Natural Orbital Decay**
-    *   Simulates atmospheric drag for unloaded vessels in the upper atmosphere/exosphere.
+    *   Simulates atmospheric drag for unloaded and loaded vessels in the upper atmosphere/exosphere.
     *   Effectively cleans up orbital debris, preventing low-orbit junk accumulation.
     *   **Realistic Physics**: Calculates drag based on the vessel's estimated Area-to-Mass Ratio and real-time atmospheric density.
 
