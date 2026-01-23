@@ -322,14 +322,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             {
                 if (v.loaded)
                 {
-                    // Loaded: Let stock physics handle it, but warn
-                    // User Request: Also apply decay logic because stock drag might be too weak in upper atmo
                     if (!lowOrbitWarned.Contains(v.id))
                     {
                         ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Warning_EnteredAtm", v.vesselName), 5.0f, ScreenMessageStyle.UPPER_CENTER);
                         lowOrbitWarned.Add(v.id);
                     }
-                    // Do NOT return here. Continue to apply decay.
                 }
                 else
                 {
@@ -580,7 +577,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         }
 
         // --- UI LOGIC ---------------------------------------------------------------
-
         private void DumpAtmosphereLogs()
         {
             Vessel v = FlightGlobals.ActiveVessel;
@@ -722,7 +718,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     {
                         uiScale = 1.0f;
                         fontSize = 13;
-                        // Fix: Reset window size to default dimensions
                         windowRect.width = 500;
                         windowRect.height = 0;
                     }
@@ -733,7 +728,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     }
                     GUILayout.Space(5);
                     
-                    // User Request: Debug Mode Toggle
+
                     bool newDebugMode = GUILayout.Toggle(debugMode, Localizer.Format("#SWAOD_DebugMode"));
                     if (newDebugMode != debugMode)
                     {
