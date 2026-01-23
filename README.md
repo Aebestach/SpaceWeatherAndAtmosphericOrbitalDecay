@@ -1,29 +1,92 @@
 # Space Weather And Atmospheric Orbital Decay
 
-## Introduction
-Space Weather And Atmospheric Orbital Decay (SWAOD) is a Kerbal Space Program (KSP) mod that introduces orbital decay mechanics. It simulates the effect of atmospheric drag on vessels (both loaded and unloaded) and integrates with the Kerbalism mod to simulate intensified orbital decay effects during solar storms.
+<div align="center">
 
-## Features
-- **Natural Orbital Decay**: Simulates atmospheric drag in the upper atmosphere/exosphere for unloaded vessels (stock KSP typically ignores drag here, causing debris to remain in orbit indefinitely).
-- **Solar Storm Effects**: (Requires Kerbalism) Significantly increases orbital decay rates during solar storms, simulating atmospheric expansion caused by solar activity (players can configure whether airless planets are affected by solar storm orbital decay in `Settings.cfg`).
-- **Realistic Physics Simulation**: Drag is calculated based on the vessel's estimated Area-to-Mass Ratio and atmospheric density.
-- **In-Game UI**: Provides a control panel to monitor all tracked vessels, view their decay status, and estimated reentry time.
+<img src="https://imgur.com/y38ZIrz.jpg" alt="Banner" width="600" />
 
-## Dependencies
-- **Kerbalism** (Optional: This mod is required for solar storm decay features. If Kerbalism is not installed, this mod functions as a standalone atmospheric orbital decay mod.)
+[![License](https://img.shields.io/github/license/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay)](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases)
 
-## Installation
-1. Download the latest version.
-2. Extract the `GameData` folder into your KSP installation directory (e.g., `C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\`).
-3. **Important**:
-   - If you **use Kerbalism**: Use the default installation.
-   - If you **do not use Kerbalism**: Replace the `.dll` file in `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` with the one from the `Extra/Non-Kerbalism/` directory.
+[English](README.md) | [中文](README_CN.md)
 
-## Usage
-- **Open UI**: Press `Mod + F11` (usually `Alt + F11` on Windows, `RightShift + F11` on Linux) to open the control window.
-- **Monitor**: The window lists all orbiting vessels, their altitudes, and current decay status.
-- **Filter**: Use the buttons at the bottom to filter the vessel list by "Stable", "Natural Decay", or "Storm Decay".
-- **Warnings**: You will receive notifications when a vessel enters a decay zone, its orbit becomes too low, or reentry is imminent.
+</div>
 
-## Configuration
-Configuration can be done by editing the `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg` file.
+---
+
+## 📖 Introduction
+
+**Space Weather And Atmospheric Orbital Decay (SWAOD)** is a mod for **Kerbal Space Program (KSP)** that introduces realistic orbital decay mechanics.
+
+In the stock game, vessels in a vacuum never experience drag. This mod changes that by simulating continuous atmospheric drag on vessels in the upper atmosphere and integrating with **Kerbalism** to simulate severe orbital decay caused by atmospheric expansion during solar storms.
+
+<div align="center">
+    <img src="https://imgur.com/4oK8ftS.jpg" alt="UI Screenshot" width="600" />
+</div>
+
+## ✨ Features
+
+*   **🪐 Natural Orbital Decay**
+    *   Simulates atmospheric drag for unloaded vessels in the upper atmosphere/exosphere.
+    *   Effectively cleans up orbital debris, preventing low-orbit junk accumulation.
+    *   **Realistic Physics**: Calculates drag based on the vessel's estimated Area-to-Mass Ratio and real-time atmospheric density.
+
+*   **☀️ Solar Storm Effects** (Requires Kerbalism)
+    *   Drastically increases orbital decay rates during solar storms, simulating atmospheric expansion caused by solar activity.
+    *   **Configurable**: Toggle whether bodies without atmospheres (e.g., Mun) are affected by storm decay in `Settings.cfg` (Disabled by default).
+
+*   **📊 Real-time Monitoring UI**
+    *   Provides a control panel to monitor the status of all tracked vessels.
+    *   View orbital altitude, decay status, and **estimated re-entry time** in real-time.
+    *   Filter vessel lists by status.
+
+*   **⚠️ Smart Warning System**
+    *   Sends notifications when vessels enter the decay zone, reach critically low orbits, or are about to re-enter.
+
+## 🛠️ Dependencies
+
+*   **Kerbal Space Program** (1.12.x Recommended)
+*   **Kerbalism** (Optional)
+    *   *Recommended*: To experience the full solar storm decay features.
+    *   *Without Kerbalism*: The mod functions as a standalone "Natural Atmospheric Decay" mod.
+
+## 📥 Installation
+
+1.  Download the [Latest Release](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases).
+2.  Extract the `GameData` folder into your KSP installation directory:
+    *   `Kerbal Space Program/GameData/SpaceWeatherAndAtmosphericOrbitalDecay/`
+3.  **⚠️ Important**:
+    *   **Using Kerbalism**: Default installation works out of the box.
+    *   **Not using Kerbalism**: Replace the `.dll` file in `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` with the one found in `Extra/Non-Kerbalism/`.
+
+## 🎮 Usage Guide
+
+### Shortcuts
+*   **Toggle UI**: `Alt + F11`
+
+### UI Functions
+*   **Monitor List**: Lists all orbiting vessels and their current status.
+*   **Filters**:
+    *   `Stable`
+    *   `Natural` (Natural Decay)
+    *   `Storm` (Storm Decay)
+*   **Config Panel**: Click "Show Config" to adjust UI scale, font size, view debug info, etc. in-game.
+
+## ⚙️ Configuration
+
+Besides the in-game UI, advanced configuration can be done by editing:
+`GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg`
+
+| Setting | Description | Default |
+| :--- | :--- | :--- |
+| `stormDecayRate` | Base decay rate during solar storms | `1.5e-7` |
+| `stormDistanceScaling` | Does storm intensity scale with distance from Sun | `true` |
+| `applyStormDecayToNoAtmosphereBody` | Apply storm decay to bodies without atmosphere | `false` |
+| `naturalDecayEnabled` | Enable natural atmospheric decay | `true` |
+| `naturalDecayMultiplier` | Multiplier for natural decay force | `0.5` |
+| `naturalDecayAltitudeCutoff` | Max altitude multiplier for natural decay (Relative to Atmo Height) | `10.0` |
+| `warningEnabled` | Enable low orbit warnings | `true` |
+| `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
+
+## 🤝 Credits
+
+*   Special thanks to **Gemini 3 Pro** for assisting in the development of this mod.
