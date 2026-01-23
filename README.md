@@ -48,6 +48,11 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     *   *Recommended*: To experience the full solar storm decay features.
     *   *Without Kerbalism*: The mod functions as a standalone "Natural Atmospheric Decay" mod.
 
+## 🧩 Compatibility
+
+*   ✅ **Planet Packs**: Theoretically compatible with all planet packs.
+*   ❌ **Principia**: Not supported.
+
 ## 📥 Installation
 
 1.  Download the [Latest Release](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases).
