@@ -44,7 +44,6 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 
 ## 🛠️ Dependencies
 
-*   **Kerbal Space Program** (1.12.x Recommended)
 *   **Kerbalism** (Optional)
     *   *Recommended*: To experience the full solar storm decay features.
     *   *Without Kerbalism*: The mod functions as a standalone "Natural Atmospheric Decay" mod.
