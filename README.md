@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://imgur.com/y38ZIrz.jpg" alt="Banner" width="600" />
+<img src="https://imgur.com/2bk9Zad.jpg" alt="Banner" width="600" />
 
 [![License](https://img.shields.io/github/license/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay)](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases)
