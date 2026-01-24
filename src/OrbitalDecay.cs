@@ -579,9 +579,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private double EstimateDecayTime(Vessel v, double da_dt_current, double effectiveStormRate)
         {
-            if (da_dt_current >= 0) return double.PositiveInfinity;
-
-            double currentAlt = v.altitude;
+            // Reentry time calculated based on Periapsis, ignoring Apoapsis.
+            double currentAlt = v.orbit.PeA;
             double atmDepth = v.mainBody.atmosphereDepth;
             double targetAlt = atmDepth;
             
@@ -981,7 +980,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
                     GUILayout.BeginHorizontal();
                     GUILayout.BeginVertical();
-                    GUILayout.Label($"Alt: {v.altitude / 1000:F3} km", normal);
+                    GUILayout.Label($"Pe Alt: {v.orbit.PeA / 1000:F3} km", normal);
                     GUILayout.Label($"Inc: {v.orbit.inclination:F2}°", normal);
                     GUILayout.Label($"Ecc: {v.orbit.eccentricity:F3}", normal);
                     GUILayout.EndVertical();
@@ -1011,7 +1010,16 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     GUILayout.FlexibleSpace();
 
                     // Prediction
-                    if (da_dt_display < -1e-20)
+                    bool showPrediction = da_dt_display < -1e-20;
+                    
+                    // Also show prediction if PeA is within natural decay range (even if current altitude is high)
+                    if (!showPrediction && naturalDecayEnabled && v.mainBody.atmosphere)
+                    {
+                        double maxDecayAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                        if (v.orbit.PeA < maxDecayAlt) showPrediction = true;
+                    }
+
+                    if (showPrediction)
                     {
                         double peA = v.orbit.PeA;
                         double distToAtm = peA - v.mainBody.atmosphereDepth;
