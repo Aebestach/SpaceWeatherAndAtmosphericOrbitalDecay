@@ -65,7 +65,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 ## 🎮 Usage Guide
 
 ### Shortcuts
-*   **Toggle UI**: `Alt + F11`
+*   **Toggle UI**: `Alt + Q`
 
 ### UI Functions
 *   **Monitor List**: Lists all orbiting vessels and their current status.
@@ -74,6 +74,9 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     *   `Natural` (Natural Decay)
     *   `Storm` (Storm Decay)
 *   **Config Panel**: Click "Show Config" to adjust UI scale, font size, view debug info, etc. in-game.
+
+### Important Notes
+*   The re-entry time displayed in the UI may differ from the actual re-entry time due to computational errors and total stride length. But the estimated value will be less than the actual re-entry time.
 
 ## ⚙️ Configuration
 
