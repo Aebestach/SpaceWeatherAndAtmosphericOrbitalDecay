@@ -318,7 +318,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 return;
             }
 
-            // Fix: Stop calculation for loaded vessels if orbit is not established (Sub-orbital)
             if (v.loaded && v.situation != Vessel.Situations.ORBITING) return;
 
             Orbit o = v.orbit;
@@ -409,7 +408,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
             if (v.loaded && altitude < atmDepth * 0.85) return;
 
-            // Fix: Stop calculation for loaded vessels if orbit is not established (Sub-orbital)
             if (v.loaded && v.situation != Vessel.Situations.ORBITING) return;
 
             double maxAlt = atmDepth * naturalDecayAltitudeCutoff;
