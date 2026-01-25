@@ -75,10 +75,6 @@
       <HintPath>..\..\0. Environment\Managed\UnityEngine.LocalizationModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.PhysicsModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>..\..\0. Environment\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
