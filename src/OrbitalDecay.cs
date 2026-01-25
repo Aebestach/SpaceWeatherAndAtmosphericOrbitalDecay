@@ -229,7 +229,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (!lowOrbitWarned.Contains(v.id))
                 {
                     string msg = Localizer.Format("#SWAOD_Warning_LowOrbit", v.vesselName, (v.orbit.PeA / 1000).ToString("F1"));
-                    ScreenMessages.PostScreenMessage(msg, 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                    if (v.vesselType != VesselType.Debris)
+                    {
+                        ScreenMessages.PostScreenMessage(msg, 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                    }
                     lowOrbitWarned.Add(v.id);
                 }
             }
@@ -315,6 +318,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 return;
             }
 
+            // Fix: Stop calculation for loaded vessels if orbit is not established (Sub-orbital)
+            if (v.loaded && v.situation != Vessel.Situations.ORBITING) return;
+
             Orbit o = v.orbit;
 
             // Distance Scaling: Inverse Square Law relative to Kerbin (1 AU)
@@ -348,7 +354,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 {
                     if (!lowOrbitWarned.Contains(v.id))
                     {
-                        ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Warning_EnteredAtm", v.vesselName), 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                        if (v.vesselType != VesselType.Debris)
+                        {
+                            ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Warning_EnteredAtm", v.vesselName), 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                        }
                         lowOrbitWarned.Add(v.id);
                     }
                 }
@@ -359,12 +368,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     if (!pendingDestroyTimers.ContainsKey(v.id))
                     {
                         pendingDestroyTimers.Add(v.id, 60.0);
-                        MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                           Localizer.Format("#SWAOD_Msg_ReEntry_Title"),
-                           Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName),
-                           MessageSystemButton.MessageButtonColor.RED,
-                           MessageSystemButton.ButtonIcons.ALERT
-                        ));
+                        if (v.vesselType != VesselType.Debris)
+                        {
+                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
+                               Localizer.Format("#SWAOD_Msg_ReEntry_Title"),
+                               Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName),
+                               MessageSystemButton.MessageButtonColor.RED,
+                               MessageSystemButton.ButtonIcons.ALERT
+                            ));
+                        }
                     }
                     
                     // Always decrease timer
@@ -372,12 +384,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     
                     if (pendingDestroyTimers[v.id] <= 0)
                     {
-                        MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                           Localizer.Format("#SWAOD_Msg_Destroyed_Title"),
-                           Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName),
-                           MessageSystemButton.MessageButtonColor.RED,
-                           MessageSystemButton.ButtonIcons.FAIL
-                        ));
+                        if (v.vesselType != VesselType.Debris)
+                        {
+                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
+                               Localizer.Format("#SWAOD_Msg_Destroyed_Title"),
+                               Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName),
+                               MessageSystemButton.MessageButtonColor.RED,
+                               MessageSystemButton.ButtonIcons.FAIL
+                            ));
+                        }
                         v.Die();
                         pendingDestroyTimers.Remove(v.id);
                         return;
@@ -393,6 +408,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
 
             if (v.loaded && altitude < atmDepth * 0.85) return;
+
+            // Fix: Stop calculation for loaded vessels if orbit is not established (Sub-orbital)
+            if (v.loaded && v.situation != Vessel.Situations.ORBITING) return;
 
             double maxAlt = atmDepth * naturalDecayAltitudeCutoff;
             if (altitude > maxAlt) return;
@@ -477,12 +495,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     double _density = GetExosphericDensity(v.mainBody, altitude);
                     if (_density > 1e-20)
                     {
-                        MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                           Localizer.Format("#SWAOD_Warning_Decay_Title"),
-                           Localizer.Format("#SWAOD_Warning_Decay_Body", v.vesselName, (altitude / 1000).ToString("F1")),
-                           MessageSystemButton.MessageButtonColor.RED,
-                           MessageSystemButton.ButtonIcons.ALERT
-                        ));
+                        if (v.vesselType != VesselType.Debris)
+                        {
+                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
+                               Localizer.Format("#SWAOD_Warning_Decay_Title"),
+                               Localizer.Format("#SWAOD_Warning_Decay_Body", v.vesselName, (altitude / 1000).ToString("F1")),
+                               MessageSystemButton.MessageButtonColor.RED,
+                               MessageSystemButton.ButtonIcons.ALERT
+                            ));
+                        }
                         exosphereWarned.Add(v.id);
                     }
                 }
