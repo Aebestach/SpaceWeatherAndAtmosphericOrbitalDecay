@@ -153,6 +153,139 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_UISaved"), 3.0f, ScreenMessageStyle.UPPER_CENTER);
         }
 
+        void FixedUpdate()
+        {
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT) return;
+
+            // Iterate over all vessels in the game
+            // typically only the ActiveVessel and nearby debris (e.g. staged boosters) are loaded.
+            // Once debris drifts beyond physics range (~2.5km), v.loaded becomes false and this loop skips it.
+            for (int i = FlightGlobals.Vessels.Count - 1; i >= 0; i--)
+            {
+                Vessel v = FlightGlobals.Vessels[i];
+                if (!IsValidVessel(v)) continue;
+                if (!v.loaded) continue;
+
+                // For loaded vessels that are not yet in a stable ORBITING state (e.g. SUB_ORBITAL/Ascent),
+                // we apply decay forces directly to the physics engine (Rigidbody) to avoid fighting it.
+                // Once ORBITING, the standard ModifyOrbit method in Update() takes over.
+                if (v.situation == Vessel.Situations.ORBITING) continue;
+                
+                // Ensure we are in the decay zone
+                if (v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * 0.85) continue;
+
+                ApplyPhysicsDecay(v, Time.fixedDeltaTime);
+            }
+        }
+
+        private void ApplyPhysicsDecay(Vessel v, double dt)
+        {
+            if (v.rootPart == null || v.rootPart.rb == null) return;
+
+            Vector3d totalForce = Vector3d.zero;
+
+            // 1. Natural Decay Force
+            if (naturalDecayEnabled && v.mainBody.atmosphere)
+            {
+                 double atmDepth = v.mainBody.atmosphereDepth;
+                 double maxAlt = atmDepth * naturalDecayAltitudeCutoff;
+                 
+                 if (v.altitude < maxAlt)
+                 {
+                     double density = GetExosphericDensity(v.mainBody, v.altitude);
+                     if (density > 1e-22)
+                     {
+                         // Fd = 0.5 * rho * v^2 * Cd * A
+                         Vector3d velVector = v.obt_velocity;
+                         double vel = velVector.magnitude;
+                         
+                         double mass = v.GetTotalMass();
+                         if (mass <= 0.001) mass = 0.1;
+                         double area = Math.Pow(mass, 0.666) * 4.0;
+                         double Cd = 2.0;
+
+                         double dragForceMagnitude = 0.5 * density * (vel * vel) * Cd * area;
+                         dragForceMagnitude *= naturalDecayMultiplier;
+
+                         // Apply higher drag if in transition zone
+                         if (v.altitude < atmDepth && v.altitude > atmDepth - 2000.0)
+                         {
+                             dragForceMagnitude *= 10.0;
+                         }
+
+                         // Force opposes velocity
+                         totalForce -= velVector.normalized * dragForceMagnitude;
+                     }
+                 }
+            }
+
+            // 2. Storm Decay Force
+            bool stormActive = false;
+#if KERBALISM
+            stormActive = StormInProgress(v);
+#endif
+            stormActive = stormActive || debugForceStorm;
+
+            if (stormActive)
+            {
+                bool apply = true;
+                if (!applyStormDecayToNoAtmosphereBody && !v.mainBody.atmosphere) apply = false;
+                
+                if (apply)
+                {
+                    // Calculate equivalent force for the storm decay rate
+                    // da/dt = -a * rate
+                    // dE/dt = (mu / 2a^2) * da/dt = - (mu * rate) / (2a)
+                    // F = (dE/dt) / v
+                    
+                    double distanceFactor = 1.0;
+                    if (stormDistanceScaling)
+                    {
+                        double dist = GetDistanceToSun(v);
+                        dist = Math.Max(dist, 1000.0);
+                        distanceFactor = Math.Pow(AU / dist, 2);
+                    }
+                    double effectiveRate = stormDecayRate * distanceFactor;
+                    
+                    double mu = v.mainBody.gravParameter;
+                    double a = v.orbit.semiMajorAxis;
+                    double vel = v.obt_velocity.magnitude;
+                    
+                    if (vel > 1.0)
+                    {
+                        double forceMag = (mu * effectiveRate) / (2.0 * a * vel);
+                        // F = m * a? No, this is F derived from energy loss.
+                        // Wait, da/dt logic applies to the Orbit, effectively changing energy per mass?
+                        // ModifyOrbit modifies Keplerian parameters which implies specific energy.
+                        // The rate is "fractional SMA change per second" if we look at exp(-rate*dt).
+                        // actually exp(-rate*dt) means a(t) = a0 * exp(-rate*t), so da/dt = -rate * a.
+                        
+                        // The calculated force above is Force per unit mass?
+                        // Energy E = -mu/2a (Specific Energy).
+                        // dE = F_drag * v * dt / m ? No.
+                        // Work done dW = F * dx = F * v * dt.
+                        // dE_total = dW.
+                        // d( -mu*m / 2a ) / dt = F * v
+                        // (mu * m / 2a^2) * (da/dt) = F * v
+                        // F = (mu * m * da/dt) / (2 * a^2 * v)
+                        // da/dt = rate * a
+                        // F = (mu * m * rate * a) / (2 * a^2 * v)
+                        // F = (mu * m * rate) / (2 * a * v)
+                        
+                        double m_kg = v.GetTotalMass() * 1000.0;
+                        double stormForce = (mu * m_kg * effectiveRate) / (2.0 * a * vel);
+                        
+                        totalForce -= v.obt_velocity.normalized * stormForce;
+                    }
+                }
+            }
+
+            if (totalForce.sqrMagnitude > 1e-10)
+            {
+                 v.rootPart.rb.AddForce(totalForce, ForceMode.Force);
+            }
+        }
+
         void Update()
         {
             // Only run in Flight, TrackingStation, or SpaceCentre
@@ -999,7 +1132,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
                     GUILayout.BeginHorizontal();
                     GUILayout.BeginVertical();
-                    GUILayout.Label($"Pe Alt: {v.orbit.PeA / 1000:F3} km", normal);
+                    if (v.orbit.PeA < 0)
+                    {
+                        GUILayout.Label($"Ap Alt: {v.orbit.ApA / 1000:F3} km", normal);
+                    }
+                    else
+                    {
+                        GUILayout.Label($"Pe Alt: {v.orbit.PeA / 1000:F3} km", normal);
+                    }
                     GUILayout.Label($"Inc: {v.orbit.inclination:F2}°", normal);
                     GUILayout.Label($"Ecc: {v.orbit.eccentricity:F3}", normal);
                     GUILayout.EndVertical();
