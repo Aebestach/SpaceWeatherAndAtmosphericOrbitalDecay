@@ -254,23 +254,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     if (vel > 1.0)
                     {
                         double forceMag = (mu * effectiveRate) / (2.0 * a * vel);
-                        // F = m * a? No, this is F derived from energy loss.
-                        // Wait, da/dt logic applies to the Orbit, effectively changing energy per mass?
-                        // ModifyOrbit modifies Keplerian parameters which implies specific energy.
-                        // The rate is "fractional SMA change per second" if we look at exp(-rate*dt).
-                        // actually exp(-rate*dt) means a(t) = a0 * exp(-rate*t), so da/dt = -rate * a.
-                        
-                        // The calculated force above is Force per unit mass?
-                        // Energy E = -mu/2a (Specific Energy).
-                        // dE = F_drag * v * dt / m ? No.
-                        // Work done dW = F * dx = F * v * dt.
-                        // dE_total = dW.
-                        // d( -mu*m / 2a ) / dt = F * v
-                        // (mu * m / 2a^2) * (da/dt) = F * v
-                        // F = (mu * m * da/dt) / (2 * a^2 * v)
-                        // da/dt = rate * a
-                        // F = (mu * m * rate * a) / (2 * a^2 * v)
-                        // F = (mu * m * rate) / (2 * a * v)
                         
                         double m_kg = v.GetTotalMass() * 1000.0;
                         double stormForce = (mu * m_kg * effectiveRate) / (2.0 * a * vel);
