@@ -28,14 +28,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private bool warningEnabled = true;
         private double warningThreshold = 0.2;
+        private double reentryDestroySeconds = 60.0;
 
         // Constants: 1 Astronomical Unit in meters (Kerbin SMA)
         private const double AU = 13599840256; 
 
         // State Variables
-        private HashSet<Guid> exosphereWarned = new HashSet<Guid>();
         private HashSet<Guid> lowOrbitWarned = new HashSet<Guid>();
         private Dictionary<Guid, double> pendingDestroyTimers = new Dictionary<Guid, double>();
+        private Dictionary<Guid, double> pendingDestroyNextMessageTimes = new Dictionary<Guid, double>();
 
         // UI Variables
         private Rect windowRect;
@@ -89,6 +90,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 // Warnings
                 cfg.TryGetValue("warningEnabled", ref warningEnabled);
                 cfg.TryGetValue("warningThreshold", ref warningThreshold);
+                cfg.TryGetValue("reentryDestroySeconds", ref reentryDestroySeconds);
+                if (reentryDestroySeconds <= 0) reentryDestroySeconds = 60.0;
 
                 Debug.Log($"[KerbalismOrbitalDecay] Settings Loaded: StormRate={stormDecayRate}, NatEnabled={naturalDecayEnabled}, Warn={warningEnabled}");
             }
@@ -207,41 +210,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     ApplyNaturalDecay(v, dt);
                 }
 
-                // Low Orbit Warning Logic
-                if (warningEnabled)
-                {
-                    CheckLowOrbitWarning(v);
-                }
-            }
-        }
-
-        private void CheckLowOrbitWarning(Vessel v)
-        {
-            if (!v.mainBody.atmosphere) return;
-
-            double limitAlt = v.mainBody.atmosphereDepth * (1.0 + warningThreshold);
-            double recoveryAlt = v.mainBody.atmosphereDepth * (1.0 + warningThreshold + 0.05);
-
-            bool isLow = v.orbit.PeA < limitAlt;
-
-            if (isLow)
-            {
-                if (!lowOrbitWarned.Contains(v.id))
-                {
-                    string msg = Localizer.Format("#SWAOD_Warning_LowOrbit", v.vesselName, (v.orbit.PeA / 1000).ToString("F1"));
-                    if (v.vesselType != VesselType.Debris)
-                    {
-                        ScreenMessages.PostScreenMessage(msg, 5.0f, ScreenMessageStyle.UPPER_CENTER);
-                    }
-                    lowOrbitWarned.Add(v.id);
-                }
-            }
-            else if (v.orbit.PeA > recoveryAlt)
-            {
-                if (lowOrbitWarned.Contains(v.id))
-                {
-                    lowOrbitWarned.Remove(v.id);
-                }
             }
         }
 
@@ -334,7 +302,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             // Calculate decay factor, Rate is modified by distance
             double effectiveRate = stormDecayRate * distanceFactor;
             double decayFactor = Math.Exp(-effectiveRate * dt);
-            ModifyOrbit(o, decayFactor, decayFactor);
+            double deltaSMA = o.semiMajorAxis * (decayFactor - 1.0);
+            ApplyDecayToVessel(v, o, deltaSMA, decayFactor);
         }
 
         private void ApplyNaturalDecay(Vessel v, double dt)
@@ -345,6 +314,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             Orbit o = v.orbit;
             double atmDepth = v.mainBody.atmosphereDepth;
             double altitude = v.altitude;
+            double currentUT = Planetarium.GetUniversalTime();
 
             // Handle Atmospheric Entry (Loaded & Unloaded)
             if (altitude < atmDepth)
@@ -366,34 +336,32 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     // Ensure timer is initialized
                     if (!pendingDestroyTimers.ContainsKey(v.id))
                     {
-                        pendingDestroyTimers.Add(v.id, 60.0);
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                               Localizer.Format("#SWAOD_Msg_ReEntry_Title"),
-                               Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName),
-                               MessageSystemButton.MessageButtonColor.RED,
-                               MessageSystemButton.ButtonIcons.ALERT
-                            ));
-                        }
+                        pendingDestroyTimers.Add(v.id, reentryDestroySeconds);
+                        pendingDestroyNextMessageTimes[v.id] = currentUT;
                     }
                     
                     // Always decrease timer
                     pendingDestroyTimers[v.id] -= dt;
+
+                    if (pendingDestroyNextMessageTimes.TryGetValue(v.id, out double nextMsgTime) && currentUT >= nextMsgTime)
+                    {
+                        if (v.vesselType != VesselType.Debris)
+                        {
+                            string msg = Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName) + "  T-" + FormatTime(Math.Max(0.0, pendingDestroyTimers[v.id])) + "/" + FormatTime(reentryDestroySeconds);
+                            ScreenMessages.PostScreenMessage(msg, 1.0f, ScreenMessageStyle.UPPER_CENTER);
+                        }
+                        pendingDestroyNextMessageTimes[v.id] = currentUT + 1.0;
+                    }
                     
                     if (pendingDestroyTimers[v.id] <= 0)
                     {
                         if (v.vesselType != VesselType.Debris)
                         {
-                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                               Localizer.Format("#SWAOD_Msg_Destroyed_Title"),
-                               Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName),
-                               MessageSystemButton.MessageButtonColor.RED,
-                               MessageSystemButton.ButtonIcons.FAIL
-                            ));
+                            ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName), 10.0f, ScreenMessageStyle.UPPER_CENTER);
                         }
                         v.Die();
                         pendingDestroyTimers.Remove(v.id);
+                        pendingDestroyNextMessageTimes.Remove(v.id);
                         return;
                     }
                 }
@@ -403,6 +371,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (pendingDestroyTimers.ContainsKey(v.id))
                 {
                     pendingDestroyTimers.Remove(v.id);
+                    pendingDestroyNextMessageTimes.Remove(v.id);
                 }
             }
 
@@ -483,40 +452,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 remainingDt -= stepDt;
             }
 
-            // Warning Logic
-            // Warn when entering the natural decay zone (exosphere)
-            if (naturalDecayEnabled && !exosphereWarned.Contains(v.id))
-            {
-                double decayStartAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                if (altitude < decayStartAlt)
-                {
-                    double _density = GetExosphericDensity(v.mainBody, altitude);
-                    if (_density > 1e-20)
-                    {
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            MessageSystem.Instance.AddMessage(new MessageSystem.Message(
-                               Localizer.Format("#SWAOD_Warning_Decay_Title"),
-                               Localizer.Format("#SWAOD_Warning_Decay_Body", v.vesselName, (altitude / 1000).ToString("F1")),
-                               MessageSystemButton.MessageButtonColor.RED,
-                               MessageSystemButton.ButtonIcons.ALERT
-                            ));
-                        }
-                        exosphereWarned.Add(v.id);
-                    }
-                }
-            }
-
-            // If vessel goes back above the decay zone (e.g. burn), reset warning
-            if (exosphereWarned.Contains(v.id))
-            {
-                double decayStartAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                if (altitude > decayStartAlt * 1.05)
-                {
-                    exosphereWarned.Remove(v.id);
-                }
-            }
-
             double criticalAlt = v.mainBody.atmosphereDepth * (1.0 + warningThreshold); // e.g. 1.2 * 70km = 84km
             if (warningEnabled && altitude < criticalAlt && !lowOrbitWarned.Contains(v.id))
             {
@@ -537,16 +472,44 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                  }
             }
 
-            if (Math.Abs(deltaSMA) < 1e-10) return;
-
             double newSMA = a + deltaSMA;
             double minSMA = v.mainBody.Radius + 100.0;
 
             if (newSMA < minSMA)
                 newSMA = minSMA;
 
+            deltaSMA = newSMA - a;
             double decayRatio = newSMA / a;
-            ModifyOrbit(o, decayRatio, decayRatio);
+            ApplyDecayToVessel(v, o, deltaSMA, decayRatio);
+        }
+
+        private void ApplyDecayToVessel(Vessel v, Orbit o, double deltaSMA, double eccFactor)
+        {
+            if (Math.Abs(deltaSMA) < 1e-10) return;
+
+            if (v.loaded && !v.packed)
+            {
+                double a = o.semiMajorAxis;
+                double r = v.altitude + v.mainBody.Radius;
+                double mu = v.mainBody.gravParameter;
+                double vSq = mu * (2.0 / r - 1.0 / a);
+                double speed = Math.Sqrt(Math.Max(0, vSq));
+
+                if (speed > 1e-6)
+                {
+                    Vector3d velVec = v.obt_velocity;
+                    if (velVec.sqrMagnitude > 1e-10)
+                    {
+                        double dv = (mu / (2.0 * a * a * speed)) * deltaSMA;
+                        Vector3d dvVec = velVec.normalized * dv;
+                        v.ChangeWorldVelocity(dvVec);
+                    }
+                }
+                return;
+            }
+
+            double smaFactor = 1.0 + (deltaSMA / o.semiMajorAxis);
+            ModifyOrbit(o, smaFactor, eccFactor);
         }
 
         private double GetExosphericDensity(CelestialBody body, double altitude)
@@ -584,10 +547,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         {
             double currentMeanAnomaly = o.meanAnomaly;
 
-            o.semiMajorAxis *= smaFactor;
-            o.eccentricity *= eccFactor;
+            double oldA = o.semiMajorAxis;
+            double oldE = o.eccentricity;
+            double oldRp = oldA * (1.0 - oldE);
 
-            if (o.eccentricity < 0) o.eccentricity = 0;
+            double newA = oldA * smaFactor;
+            double newE = oldE * eccFactor;
+
+            if (oldE >= 0.0 && oldE < 1.0 && newA > 0.0)
+            {
+                double minE = 1.0 - (oldRp / newA);
+                if (minE > newE) newE = minE;
+            }
+
+            if (newE < 0.0) newE = 0.0;
+            if (oldE < 1.0 && newE >= 1.0) newE = 0.999999;
+
+            o.semiMajorAxis = newA;
+            o.eccentricity = newE;
 
             o.epoch = Planetarium.GetUniversalTime();
             o.meanAnomalyAtEpoch = currentMeanAnomaly;
