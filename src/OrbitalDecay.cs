@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using KSP.UI.Screens;
 using KSP.Localization;
 
 #if KERBALISM
@@ -901,7 +900,19 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, scrollStyle, GUILayout.Height(400));
 
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            List<Vessel> vesselOrder = new List<Vessel>(FlightGlobals.Vessels.Count);
+            if (activeVessel != null && IsValidVessel(activeVessel))
+            {
+                vesselOrder.Add(activeVessel);
+            }
             foreach (Vessel v in FlightGlobals.Vessels)
+            {
+                if (v == activeVessel) continue;
+                vesselOrder.Add(v);
+            }
+
+            foreach (Vessel v in vesselOrder)
             {
                 if (!IsValidVessel(v)) continue;
 
