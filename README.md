@@ -93,7 +93,7 @@ Besides the in-game UI, advanced configuration can be done by editing:
 | `naturalDecayAltitudeCutoff` | Max altitude multiplier for natural decay (Relative to Atmo Height) | `10.0` |
 | `warningEnabled` | Enable low orbit warnings | `true` |
 | `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
-| `reentryDestroySeconds` | Seconds before vessels are destroyed after atmospheric entry | `60.0` |
+| `reentryDestroySeconds` | Countdown seconds until an unloaded vehicle is destroyed after entering the atmosphere | `60.0` |
 
 ## 🤝 Credits
 
