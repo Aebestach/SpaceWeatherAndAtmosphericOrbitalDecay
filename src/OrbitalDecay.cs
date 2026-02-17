@@ -27,7 +27,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private bool warningEnabled = true;
         private double warningThreshold = 0.2;
-        private double reentryDestroySeconds = 180.0;
+        private double reentryDestroySeconds = 60.0;
 
         // Constants: 1 Astronomical Unit in meters (Kerbin SMA)
         private const double AU = 13599840256; 
@@ -35,7 +35,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         // State Variables
         private HashSet<Guid> lowOrbitWarned = new HashSet<Guid>();
         private HashSet<Guid> lowPeriapsisWarned = new HashSet<Guid>();
-        private HashSet<Guid> atmosphereTopWarned = new HashSet<Guid>();
         private Dictionary<Guid, double> pendingDestroyTimers = new Dictionary<Guid, double>();
         private Dictionary<Guid, double> pendingDestroyNextMessageTimes = new Dictionary<Guid, double>();
 
@@ -96,7 +95,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 cfg.TryGetValue("warningEnabled", ref warningEnabled);
                 cfg.TryGetValue("warningThreshold", ref warningThreshold);
                 cfg.TryGetValue("reentryDestroySeconds", ref reentryDestroySeconds);
-                if (reentryDestroySeconds <= 0) reentryDestroySeconds = 180.0;
+                if (reentryDestroySeconds <= 0) reentryDestroySeconds = 60.0;
 
                 Debug.Log($"[KerbalismOrbitalDecay] Settings Loaded: StormRate={stormDecayRate}, NatEnabled={naturalDecayEnabled}, Warn={warningEnabled}");
             }
@@ -215,8 +214,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     ApplyNaturalDecay(v, dt);
                 }
                 
-                CheckActiveVesselAtmosphereTopWarning(v);
-
             }
         }
 
@@ -267,6 +264,23 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return meters.ToString("F1") + " m";
         }
 
+        private void DestroyLoadedVessel(Vessel v)
+        {
+            if (v == null || !v.loaded) return;
+            List<Part> parts = v.Parts;
+            if (parts == null || parts.Count == 0)
+            {
+                v.Die();
+                return;
+            }
+            for (int i = parts.Count - 1; i >= 0; i--)
+            {
+                Part p = parts[i];
+                if (p != null) p.explode();
+            }
+            v.Die();
+        }
+
         private bool IsValidVessel(Vessel v)
         {
             if (v == null || v.state == Vessel.State.DEAD) return false;
@@ -276,45 +290,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 v.vesselType == VesselType.SpaceObject ||
                 v.vesselType == VesselType.Unknown) return false;
 
+            if (v.loaded && v == FlightGlobals.ActiveVessel) return true;
+
             if (v.situation != Vessel.Situations.ORBITING && v.situation != Vessel.Situations.SUB_ORBITAL) return false;
 
             return true;
-        }
-
-        private bool IsCircularOrbit(Vessel v)
-        {
-            return v.orbit != null && v.orbit.eccentricity <= 0.02;
-        }
-
-        private void CheckActiveVesselAtmosphereTopWarning(Vessel v)
-        {
-            if (v == null || v != FlightGlobals.ActiveVessel) return;
-            if (!v.mainBody.atmosphere) return;
-            if (v.vesselType == VesselType.Debris) return;
-            if (v.situation != Vessel.Situations.ORBITING && v.situation != Vessel.Situations.SUB_ORBITAL) return;
-
-            double atmDepth = v.mainBody.atmosphereDepth;
-            double peA = v.orbit.PeA;
-            double apA = v.orbit.ApA;
-            double topBuffer = Math.Max(2000.0, atmDepth * 0.02);
-
-            bool atTop = v.altitude >= atmDepth && peA <= atmDepth && apA <= atmDepth + topBuffer && IsCircularOrbit(v);
-
-            if (atTop)
-            {
-                if (!atmosphereTopWarned.Contains(v.id))
-                {
-                    ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_AutoDestroy_AtmTop", v.vesselName, FormatTime(reentryDestroySeconds)), 6.0f, ScreenMessageStyle.UPPER_CENTER);
-                    atmosphereTopWarned.Add(v.id);
-                }
-            }
-            else
-            {
-                if (atmosphereTopWarned.Contains(v.id))
-                {
-                    atmosphereTopWarned.Remove(v.id);
-                }
-            }
         }
 
         private double GetDistanceToSun(Vessel v)
@@ -386,6 +366,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         }
                         lowOrbitWarned.Add(v.id);
                     }
+                    if (pendingDestroyTimers.ContainsKey(v.id))
+                    {
+                        pendingDestroyTimers.Remove(v.id);
+                        pendingDestroyNextMessageTimes.Remove(v.id);
+                    }
+                    return;
                 }
                 
                 if (!pendingDestroyTimers.ContainsKey(v.id))
@@ -817,6 +803,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUIStyle green = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(0.4f, 1f, 0.4f) }, fontSize = fontSize, fontStyle = FontStyle.Bold };
             GUIStyle yellow = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(1f, 1f, 0.4f) }, fontSize = fontSize };
             GUIStyle subHeader = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = fontSize - 1, alignment = TextAnchor.MiddleLeft };
+            GUIStyle destroyButtonStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize };
+            string destroyLabel = Localizer.Format("#SWAOD_DestroyNow");
+            float destroyButtonWidth = destroyButtonStyle.CalcSize(new GUIContent(destroyLabel)).x + 12f;
 
             GUILayout.BeginHorizontal();
             GUILayout.Label(Localizer.Format("#SWAOD_Config"), bold);
@@ -988,7 +977,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (!IsValidVessel(v)) continue;
                 vesselOrder.Add(v);
             }
-            vesselOrder.Sort((a, b) => string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase));
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            vesselOrder.Sort((a, b) =>
+            {
+                bool aIsActive = activeVessel != null && a == activeVessel;
+                bool bIsActive = activeVessel != null && b == activeVessel;
+                if (aIsActive && !bIsActive) return -1;
+                if (!aIsActive && bIsActive) return 1;
+                return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
+            });
 
             foreach (Vessel v in vesselOrder)
             {
@@ -1057,6 +1054,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     GUILayout.Label($"<b>{v.vesselName}</b>", new GUIStyle(GUI.skin.label) { richText = true, fontSize = fontSize, fontStyle = FontStyle.Bold });
                     GUILayout.FlexibleSpace();
                     GUILayout.Label($"{v.mainBody.name}", yellow);
+                    bool showDestroyButton = v.loaded && v.vesselType != VesselType.Debris && v.mainBody.atmosphere && v.orbit.PeA < v.mainBody.atmosphereDepth;
+                    if (showDestroyButton)
+                    {
+                        GUILayout.Space(6);
+                        if (GUILayout.Button(destroyLabel, destroyButtonStyle, GUILayout.Width(destroyButtonWidth)))
+                        {
+                            DestroyLoadedVessel(v);
+                        }
+                    }
                     GUILayout.EndHorizontal();
 
                     GUILayout.BeginHorizontal();
