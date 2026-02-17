@@ -37,11 +37,11 @@
 
 *   **📊 实时监控 UI**
     *   提供控制面板监控所有追踪飞船的状态。
-    *   实时查看轨道高度、衰减状态及**预计再入时间**。
+    *   实时查看远/近地点轨道高度、衰减状态及**远/近地点的预计再入时间**。
     *   支持按状态筛选飞船列表。
 
 *   **⚠️ 智能预警系统**
-    *   当飞船进入衰减区、轨道过低或即将再入大气层时发送通知。
+    *   当载具首次再入大气层和载具自动销毁开始时发送通知。
 
 ## 🛠️ 依赖项 | Dependencies
 
@@ -74,7 +74,7 @@
     *   `Stable` (稳定)
     *   `Natural` (自然衰减)
     *   `Storm` (风暴衰减)
-*   **配置面板**：点击 "Show Config" 可在游戏内调整UI比例、字体大小，查看Debug信息等。
+*   **配置面板**：点击 `Show Config` 可在游戏内调整UI比例、字体大小，查看Debug信息等。
 
 ### 注意事项
 *   UI中显示的再入时间与实际再入时间可能存在差异，这是由于计算误差和总步长所致，但估计值比实际再入时间要少。
@@ -90,11 +90,11 @@
 | `stormDistanceScaling` | 风暴强度是否随距离太阳远近而变化 | `true` |
 | `applyStormDecayToNoAtmosphereBody` | 是否对无大气天体应用风暴衰减 | `false` |
 | `naturalDecayEnabled` | 启用自然大气衰减 | `true` |
-| `naturalDecayMultiplier` | 自然衰减力度倍率 | `0.5` |
+| `naturalDecayMultiplier` | 自然衰减力度倍率 | `1.0` |
 | `naturalDecayAltitudeCutoff` | 自然衰减生效的最大高度倍率 (相对于大气层高度) | `10.0` |
 | `warningEnabled` | 是否启用低轨道警告 | `true` |
 | `warningThreshold` | 低轨道警告阈值 (Periapsis < 大气高度 * (1.0 + 阈值)) | `0.2` |
-| `reentryDestroySeconds` | 未加载载具进入大气层后销毁的倒计时秒数 | `60.0` |
+| `reentryDestroySeconds` | 载具进入大气层后销毁的倒计时秒数 | `180.0` |
 
 ## 🤝 致谢 | Credits
 
