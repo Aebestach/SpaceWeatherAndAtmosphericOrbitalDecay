@@ -1,6 +1,5 @@
 <Solution>
   <Configurations>
-    <BuildType Name="Debug" />
     <BuildType Name="Release_Kerbalism" />
     <BuildType Name="Release_NoKerbalism" />
   </Configurations>
