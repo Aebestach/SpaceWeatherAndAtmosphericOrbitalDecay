@@ -48,6 +48,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         // UI Settings
         private float uiScale = 1.0f;
         private int fontSize = 13;
+        private const float baseWindowWidth = 500f;
+        private const int baseFontSize = 13;
+        private const float windowRightMargin = 20f;
         private bool showSettings = false;
         private KeyCode toggleKey = KeyCode.Q;
         private bool isRebinding = false;
@@ -137,7 +140,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     
                     if (hasPos)
                     {
-                        windowRect = new Rect(x, y, 500, 0);
+                        windowRect = new Rect(x, y, GetWindowWidthForFontSize(fontSize), 0);
                         isWindowInitialized = true;
                     }
                 }
@@ -173,7 +176,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             // Initialize Window Position (Right side of screen)
             if (!isWindowInitialized)
             {
-                windowRect = new Rect(Screen.width - 520, 100, 500, 0);
+                float initialWidth = GetWindowWidthForFontSize(fontSize);
+                windowRect = new Rect(Screen.width - initialWidth - windowRightMargin, 100, initialWidth, 0);
                 isWindowInitialized = true;
             }
 
@@ -800,8 +804,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             {
                 GUI.skin = HighLogic.Skin;
                 Matrix4x4 oldMatrix = GUI.matrix;
-                GUIUtility.ScaleAroundPivot(new Vector2(uiScale, uiScale), Vector2.zero);    
-                windowRect = GUILayout.Window(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"));  
+                GUIUtility.ScaleAroundPivot(new Vector2(uiScale, uiScale), Vector2.zero);
+                GUIStyle windowTitleStyle = new GUIStyle(GUI.skin.window) { fontSize = fontSize + 1 };
+                windowRect = GUILayout.Window(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"), windowTitleStyle);  
                 GUI.matrix = oldMatrix;
             }
         }
@@ -816,7 +821,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUIStyle green = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(0.4f, 1f, 0.4f) }, fontSize = fontSize, fontStyle = FontStyle.Bold };
             GUIStyle yellow = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(1f, 1f, 0.4f) }, fontSize = fontSize };
             GUIStyle subHeader = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = fontSize - 1, alignment = TextAnchor.MiddleLeft };
-            GUIStyle destroyButtonStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize };
+            GUIStyle destroyButtonStyle = GUI.skin.button;
             string destroyLabel = Localizer.Format("#SWAOD_DestroyNow");
             float destroyButtonWidth = destroyButtonStyle.CalcSize(new GUIContent(destroyLabel)).x + 12f;
 
@@ -849,12 +854,18 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         windowRect.x *= (oldScale / uiScale);
                         windowRect.y *= (oldScale / uiScale);
                         
-                        windowRect.width = 500;
+                        windowRect.width = GetWindowWidthForFontSize(fontSize);
                         windowRect.height = 0;
                     }
                     
                     GUILayout.Label(Localizer.Format("#SWAOD_FontSize", fontSize), subHeader);
+                    int oldFontSize = fontSize;
                     fontSize = (int)GUILayout.HorizontalSlider((float)fontSize, 10f, 20f);
+                    if (oldFontSize != fontSize)
+                    {
+                        ApplyWindowWidth(GetWindowWidthForFontSize(fontSize));
+                        windowRect.height = 0;
+                    }
 
                     GUILayout.Space(5);
 
@@ -888,7 +899,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         uiScale = 1.0f;
                         fontSize = 13;
                         toggleKey = KeyCode.Q;
-                        windowRect.width = 500;
+                        windowRect.width = GetWindowWidthForFontSize(fontSize);
                         windowRect.height = 0;
                     }
                     
@@ -1100,13 +1111,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     string peTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.PeA, isStorming, isForced, effectiveStormRate, cachedDecayTimesPe, lastDecayCalcTimePe));
                     string apTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.ApA, isStorming, isForced, effectiveStormRate, cachedDecayTimesAp, lastDecayCalcTimeAp));
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(peAltText, normal, GUILayout.MinWidth(240));
-                    GUILayout.Space(28);
+                    GUILayout.Label(peAltText, normal, GUILayout.MinWidth(300f * (fontSize / (float)baseFontSize)));
+                    GUILayout.Space(28f * (fontSize / (float)baseFontSize));
                     GUILayout.Label(peTimeText, normal);
                     GUILayout.EndHorizontal();
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(apAltText, normal, GUILayout.MinWidth(240));
-                    GUILayout.Space(28);
+                    GUILayout.Label(apAltText, normal, GUILayout.MinWidth(300f * (fontSize / (float)baseFontSize)));
+                    GUILayout.Space(28f * (fontSize / (float)baseFontSize));
                     GUILayout.Label(apTimeText, normal);
                     GUILayout.EndHorizontal();
                     GUILayout.Label(Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2")), normal);
@@ -1141,6 +1152,19 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUILayout.EndVertical();
 
             GUI.DragWindow();
+        }
+
+        private float GetWindowWidthForFontSize(int size)
+        {
+            return baseWindowWidth * (size / (float)baseFontSize);
+        }
+
+        private void ApplyWindowWidth(float newWidth)
+        {
+            float previousWidth = windowRect.width > 0f ? windowRect.width : baseWindowWidth;
+            float right = windowRect.x + previousWidth;
+            windowRect.width = newWidth;
+            windowRect.x = right - newWidth;
         }
     }
 }
