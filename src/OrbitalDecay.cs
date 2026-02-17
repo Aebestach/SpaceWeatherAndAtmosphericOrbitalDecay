@@ -1109,8 +1109,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     GUILayout.Space(28);
                     GUILayout.Label(apTimeText, normal);
                     GUILayout.EndHorizontal();
-                    GUILayout.Label($"Inc: {v.orbit.inclination:F2}°", normal);
-                    GUILayout.Label($"Ecc: {v.orbit.eccentricity:F3}", normal);
+                    GUILayout.Label(Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2")), normal);
+                    GUILayout.Label(Localizer.Format("#SWAOD_Ecc", v.orbit.eccentricity.ToString("F3")), normal);
                     if (debugMode && stormInRange)
                     {
                         GUILayout.Label(Localizer.Format("#SWAOD_StormRate_Debug", currentStormRate.ToString("E2")), red);
