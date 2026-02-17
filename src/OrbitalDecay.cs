@@ -318,6 +318,17 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 return;
             }
 
+            if (v.mainBody.atmosphere)
+            {
+                double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                if (v.altitude > maxAlt) return;
+            }
+            else
+            {
+                double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                if (v.altitude > maxAlt) return;
+            }
+
             if (v.loaded && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * 0.85)
             {
                 return;
@@ -708,10 +719,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             double atmDepth = v.mainBody.atmosphereDepth;
             if (altitude <= atmDepth) return Localizer.Format("#SWAOD_ReEntry");
 
+            double maxDecayAlt = atmDepth * naturalDecayAltitudeCutoff;
+            if (altitude > maxDecayAlt) return Localizer.Format("#SWAOD_NotAvailable");
+
             bool canDecay = isStorming || isForced;
             if (!canDecay && naturalDecayEnabled)
             {
-                double maxDecayAlt = atmDepth * naturalDecayAltitudeCutoff;
                 if (altitude < maxDecayAlt) canDecay = true;
             }
 
@@ -996,6 +1009,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 bool isStorming = stormActive;
                 bool isForced = debugForceStorm;
                 bool isNatural = false;
+                bool stormInRange = false;
 
                 if (naturalDecayEnabled && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
                 {
@@ -1012,10 +1026,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     }
                 }
 
+                if (isStorming || isForced)
+                {
+                    if (v.mainBody.atmosphere)
+                    {
+                        double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                        stormInRange = v.altitude <= maxAlt;
+                    }
+                    else if (applyStormDecayToNoAtmosphereBody)
+                    {
+                        double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                        stormInRange = v.altitude <= maxAlt;
+                    }
+                }
+
                 // Calculate Storm Decay Rate
                 double effectiveStormRate = 0;
                 double currentStormRate = 0;
-                if (isStorming || isForced)
+                if (stormInRange)
                 {
                     double distanceFactor = 1.0;
                     if (stormDistanceScaling)
@@ -1083,15 +1111,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     GUILayout.EndHorizontal();
                     GUILayout.Label($"Inc: {v.orbit.inclination:F2}°", normal);
                     GUILayout.Label($"Ecc: {v.orbit.eccentricity:F3}", normal);
+                    if (debugMode && stormInRange)
+                    {
+                        GUILayout.Label(Localizer.Format("#SWAOD_StormRate_Debug", currentStormRate.ToString("E2")), red);
+                    }
                     GUILayout.EndVertical();
                     GUILayout.FlexibleSpace();
-                    
-                    if (debugMode && (isStorming || isForced))
-                    {
-                        GUILayout.BeginVertical();
-                        GUILayout.Label(Localizer.Format("#SWAOD_StormRate_Debug", currentStormRate.ToString("E2")), red);
-                        GUILayout.EndVertical();
-                    }
                     GUILayout.EndHorizontal();
 
                     GUILayout.Space(4);
@@ -1101,8 +1126,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     string statusText = Localizer.Format("#SWAOD_Status_Stable");
                     GUIStyle statusStyle = green;
                     
-                    if ((isStorming || isForced) && isNatural) { statusText = Localizer.Format("#SWAOD_Status_StormPlus"); statusStyle = red; }
-                    else if (isStorming || isForced) { statusText = Localizer.Format("#SWAOD_Status_StormDecay"); statusStyle = red; }
+                    if (stormInRange && isNatural) { statusText = Localizer.Format("#SWAOD_Status_StormPlus"); statusStyle = red; }
+                    else if (stormInRange) { statusText = Localizer.Format("#SWAOD_Status_StormDecay"); statusStyle = red; }
                     else if (isNatural) { statusText = Localizer.Format("#SWAOD_Status_NaturalDecay"); statusStyle = yellow; }
                     
                     GUILayout.Label(statusText, statusStyle);
