@@ -387,40 +387,35 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         lowOrbitWarned.Add(v.id);
                     }
                 }
-                else
+                
+                if (!pendingDestroyTimers.ContainsKey(v.id))
                 {
-                    // Unloaded: Handle destruction logic
-                    // Ensure timer is initialized
-                    if (!pendingDestroyTimers.ContainsKey(v.id))
-                    {
-                        pendingDestroyTimers.Add(v.id, reentryDestroySeconds);
-                        pendingDestroyNextMessageTimes[v.id] = currentUT;
-                    }
-                    
-                    // Always decrease timer
-                    pendingDestroyTimers[v.id] -= dt;
+                    pendingDestroyTimers.Add(v.id, reentryDestroySeconds);
+                    pendingDestroyNextMessageTimes[v.id] = currentUT;
+                }
+                
+                pendingDestroyTimers[v.id] -= dt;
 
-                    if (pendingDestroyNextMessageTimes.TryGetValue(v.id, out double nextMsgTime) && currentUT >= nextMsgTime)
+                if (pendingDestroyNextMessageTimes.TryGetValue(v.id, out double nextMsgTime) && currentUT >= nextMsgTime)
+                {
+                    if (v.vesselType != VesselType.Debris)
                     {
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            string msg = Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName, FormatTime(reentryDestroySeconds)) + "  T-" + FormatTime(Math.Max(0.0, pendingDestroyTimers[v.id])) + "/" + FormatTime(reentryDestroySeconds);
-                            ScreenMessages.PostScreenMessage(msg, 1.0f, ScreenMessageStyle.UPPER_CENTER);
-                        }
-                        pendingDestroyNextMessageTimes[v.id] = currentUT + 1.0;
+                        string msg = Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName, FormatTime(reentryDestroySeconds)) + "  T-" + FormatTime(Math.Max(0.0, pendingDestroyTimers[v.id])) + "/" + FormatTime(reentryDestroySeconds);
+                        ScreenMessages.PostScreenMessage(msg, 1.0f, ScreenMessageStyle.UPPER_CENTER);
                     }
-                    
-                    if (pendingDestroyTimers[v.id] <= 0)
+                    pendingDestroyNextMessageTimes[v.id] = currentUT + 1.0;
+                }
+                
+                if (pendingDestroyTimers[v.id] <= 0)
+                {
+                    if (v.vesselType != VesselType.Debris)
                     {
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName), 10.0f, ScreenMessageStyle.UPPER_CENTER);
-                        }
-                        v.Die();
-                        pendingDestroyTimers.Remove(v.id);
-                        pendingDestroyNextMessageTimes.Remove(v.id);
-                        return;
+                        ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName), 10.0f, ScreenMessageStyle.UPPER_CENTER);
                     }
+                    v.Die();
+                    pendingDestroyTimers.Remove(v.id);
+                    pendingDestroyNextMessageTimes.Remove(v.id);
+                    return;
                 }
             }
             else
