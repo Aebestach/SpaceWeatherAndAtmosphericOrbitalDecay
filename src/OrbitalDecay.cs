@@ -34,6 +34,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         // State Variables
         private HashSet<Guid> lowOrbitWarned = new HashSet<Guid>();
+        private HashSet<Guid> lowPeriapsisWarned = new HashSet<Guid>();
         private Dictionary<Guid, double> pendingDestroyTimers = new Dictionary<Guid, double>();
         private Dictionary<Guid, double> pendingDestroyNextMessageTimes = new Dictionary<Guid, double>();
 
@@ -47,6 +48,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         // UI Settings
         private float uiScale = 1.0f;
         private int fontSize = 13;
+        private const float baseWindowWidth = 500f;
+        private const int baseFontSize = 13;
+        private const float windowRightMargin = 20f;
         private bool showSettings = false;
         private KeyCode toggleKey = KeyCode.Q;
         private bool isRebinding = false;
@@ -54,10 +58,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         // UI Filter
         private enum FilterMode { All, Stable, Natural, Storm }
         private FilterMode currentFilter = FilterMode.All;
+        private enum DebrisFilterMode { All, OnlyDebris, ExcludeDebris }
+        private DebrisFilterMode currentDebrisFilter = DebrisFilterMode.All;
 
         // Caching for Performance
-        private Dictionary<Guid, double> cachedDecayTimes = new Dictionary<Guid, double>();
-        private Dictionary<Guid, float> lastDecayCalcTime = new Dictionary<Guid, float>();
+        private Dictionary<Guid, double> cachedDecayTimesPe = new Dictionary<Guid, double>();
+        private Dictionary<Guid, float> lastDecayCalcTimePe = new Dictionary<Guid, float>();
+        private Dictionary<Guid, double> cachedDecayTimesAp = new Dictionary<Guid, double>();
+        private Dictionary<Guid, float> lastDecayCalcTimeAp = new Dictionary<Guid, float>();
         private const float CACHE_INTERVAL = 1.0f;
 
         void Start()
@@ -132,7 +140,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     
                     if (hasPos)
                     {
-                        windowRect = new Rect(x, y, 500, 0);
+                        windowRect = new Rect(x, y, GetWindowWidthForFontSize(fontSize), 0);
                         isWindowInitialized = true;
                     }
                 }
@@ -168,7 +176,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             // Initialize Window Position (Right side of screen)
             if (!isWindowInitialized)
             {
-                windowRect = new Rect(Screen.width - 520, 100, 500, 0);
+                float initialWidth = GetWindowWidthForFontSize(fontSize);
+                windowRect = new Rect(Screen.width - initialWidth - windowRightMargin, 100, initialWidth, 0);
                 isWindowInitialized = true;
             }
 
@@ -208,7 +217,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 {
                     ApplyNaturalDecay(v, dt);
                 }
-
+                
             }
         }
 
@@ -245,6 +254,37 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return Localizer.Format("#SWAOD_Time_MinsSecs", m, s);
         }
 
+        private string FormatAltitude(double meters)
+        {
+            double absMeters = Math.Abs(meters);
+            if (absMeters >= 1000000.0)
+            {
+                return (meters / 1000000.0).ToString("F3") + " Mm";
+            }
+            if (absMeters >= 1000.0)
+            {
+                return (meters / 1000.0).ToString("F3") + " km";
+            }
+            return meters.ToString("F1") + " m";
+        }
+
+        private void DestroyLoadedVessel(Vessel v)
+        {
+            if (v == null || !v.loaded) return;
+            List<Part> parts = v.Parts;
+            if (parts == null || parts.Count == 0)
+            {
+                v.Die();
+                return;
+            }
+            for (int i = parts.Count - 1; i >= 0; i--)
+            {
+                Part p = parts[i];
+                if (p != null) p.explode();
+            }
+            v.Die();
+        }
+
         private bool IsValidVessel(Vessel v)
         {
             if (v == null || v.state == Vessel.State.DEAD) return false;
@@ -253,6 +293,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (v.vesselType == VesselType.Flag ||
                 v.vesselType == VesselType.SpaceObject ||
                 v.vesselType == VesselType.Unknown) return false;
+
+            if (v.loaded && v == FlightGlobals.ActiveVessel) return true;
 
             if (v.situation != Vessel.Situations.ORBITING && v.situation != Vessel.Situations.SUB_ORBITAL) return false;
 
@@ -278,6 +320,17 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (!applyStormDecayToNoAtmosphereBody && !v.mainBody.atmosphere)
             {
                 return;
+            }
+
+            if (v.mainBody.atmosphere)
+            {
+                double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                if (v.altitude > maxAlt) return;
+            }
+            else
+            {
+                double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                if (v.altitude > maxAlt) return;
             }
 
             if (v.loaded && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * 0.85)
@@ -328,41 +381,42 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         }
                         lowOrbitWarned.Add(v.id);
                     }
-                }
-                else
-                {
-                    // Unloaded: Handle destruction logic
-                    // Ensure timer is initialized
-                    if (!pendingDestroyTimers.ContainsKey(v.id))
+                    if (pendingDestroyTimers.ContainsKey(v.id))
                     {
-                        pendingDestroyTimers.Add(v.id, reentryDestroySeconds);
-                        pendingDestroyNextMessageTimes[v.id] = currentUT;
-                    }
-                    
-                    // Always decrease timer
-                    pendingDestroyTimers[v.id] -= dt;
-
-                    if (pendingDestroyNextMessageTimes.TryGetValue(v.id, out double nextMsgTime) && currentUT >= nextMsgTime)
-                    {
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            string msg = Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName) + "  T-" + FormatTime(Math.Max(0.0, pendingDestroyTimers[v.id])) + "/" + FormatTime(reentryDestroySeconds);
-                            ScreenMessages.PostScreenMessage(msg, 1.0f, ScreenMessageStyle.UPPER_CENTER);
-                        }
-                        pendingDestroyNextMessageTimes[v.id] = currentUT + 1.0;
-                    }
-                    
-                    if (pendingDestroyTimers[v.id] <= 0)
-                    {
-                        if (v.vesselType != VesselType.Debris)
-                        {
-                            ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName), 10.0f, ScreenMessageStyle.UPPER_CENTER);
-                        }
-                        v.Die();
                         pendingDestroyTimers.Remove(v.id);
                         pendingDestroyNextMessageTimes.Remove(v.id);
-                        return;
                     }
+                    return;
+                }
+                
+                if (!pendingDestroyTimers.ContainsKey(v.id))
+                {
+                    pendingDestroyTimers.Add(v.id, reentryDestroySeconds);
+                    pendingDestroyNextMessageTimes[v.id] = currentUT;
+                }
+                
+                pendingDestroyTimers[v.id] -= dt;
+
+                if (pendingDestroyNextMessageTimes.TryGetValue(v.id, out double nextMsgTime) && currentUT >= nextMsgTime)
+                {
+                    if (v.vesselType != VesselType.Debris)
+                    {
+                        string msg = Localizer.Format("#SWAOD_Msg_ReEntry_Body", v.vesselName, FormatTime(reentryDestroySeconds)) + "  T-" + FormatTime(Math.Max(0.0, pendingDestroyTimers[v.id])) + "/" + FormatTime(reentryDestroySeconds);
+                        ScreenMessages.PostScreenMessage(msg, 1.0f, ScreenMessageStyle.UPPER_CENTER);
+                    }
+                    pendingDestroyNextMessageTimes[v.id] = currentUT + 1.0;
+                }
+                
+                if (pendingDestroyTimers[v.id] <= 0)
+                {
+                    if (v.vesselType != VesselType.Debris)
+                    {
+                        ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_Destroyed_Body", v.vesselName), 10.0f, ScreenMessageStyle.UPPER_CENTER);
+                    }
+                    v.Die();
+                    pendingDestroyTimers.Remove(v.id);
+                    pendingDestroyNextMessageTimes.Remove(v.id);
+                    return;
                 }
             }
             else
@@ -452,9 +506,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
 
             double criticalAlt = v.mainBody.atmosphereDepth * (1.0 + warningThreshold); // e.g. 1.2 * 70km = 84km
-            if (warningEnabled && altitude < criticalAlt && !lowOrbitWarned.Contains(v.id))
+            if (warningEnabled && v.orbit.PeA < criticalAlt && !lowPeriapsisWarned.Contains(v.id))
             {
-                // Re-warn for critical low altitude
+                if (v.vesselType != VesselType.Debris)
+                {
+                    ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Warning_LowOrbit", v.vesselName, FormatAltitude(criticalAlt)), 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                }
+                lowPeriapsisWarned.Add(v.id);
             }
 
 
@@ -572,22 +630,21 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             o.UpdateFromUT(Planetarium.GetUniversalTime());
         }
 
-        private double EstimateDecayTime(Vessel v, double da_dt_current, double effectiveStormRate)
+        private double EstimateDecayTime(Vessel v, double startAlt, double effectiveStormRate)
         {
             // Reentry time calculated based on Periapsis, ignoring Apoapsis.
-            double currentAlt = v.orbit.PeA;
             double atmDepth = v.mainBody.atmosphereDepth;
             double targetAlt = atmDepth;
             
-            if (currentAlt <= atmDepth) return 0;
+            if (startAlt <= atmDepth) return 0;
             
-            double simAlt = currentAlt;
+            double simAlt = startAlt;
             double totalTime = 0;
-            double stepAlt = (currentAlt - atmDepth) / 10.0;
+            double stepAlt = (startAlt - atmDepth) / 10.0;
             
             // Limit max iterations for performance
             int maxSteps = 100; 
-            stepAlt = (currentAlt - atmDepth) / (double)maxSteps;
+            stepAlt = (startAlt - atmDepth) / (double)maxSteps;
             
             double mu = v.mainBody.gravParameter;
             double R = v.mainBody.Radius;
@@ -632,14 +689,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return totalTime;
         }
 
-        private double GetCachedDecayTime(Vessel v, double da_dt_current, double effectiveStormRate)
+        private double GetCachedDecayTime(Vessel v, double startAlt, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
         {
             float currentTime = Time.realtimeSinceStartup;
 
             // Check cache validity
-            if (cachedDecayTimes.TryGetValue(v.id, out double cachedTime))
+            if (cache.TryGetValue(v.id, out double cachedTime))
             {
-                if (lastDecayCalcTime.TryGetValue(v.id, out float lastTime))
+                if (timeCache.TryGetValue(v.id, out float lastTime))
                 {
                     if (currentTime - lastTime < CACHE_INTERVAL)
                     {
@@ -648,15 +705,37 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 }
             }
 
-            double newTime = EstimateDecayTime(v, da_dt_current, effectiveStormRate);
+            double newTime = EstimateDecayTime(v, startAlt, effectiveStormRate);
 
-            if (cachedDecayTimes.ContainsKey(v.id)) cachedDecayTimes[v.id] = newTime;
-            else cachedDecayTimes.Add(v.id, newTime);
+            if (cache.ContainsKey(v.id)) cache[v.id] = newTime;
+            else cache.Add(v.id, newTime);
 
-            if (lastDecayCalcTime.ContainsKey(v.id)) lastDecayCalcTime[v.id] = currentTime;
-            else lastDecayCalcTime.Add(v.id, currentTime);
+            if (timeCache.ContainsKey(v.id)) timeCache[v.id] = currentTime;
+            else timeCache.Add(v.id, currentTime);
 
             return newTime;
+        }
+
+        private string GetDecayTimeDisplay(Vessel v, double altitude, bool isStorming, bool isForced, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
+        {
+            if (!v.mainBody.atmosphere) return Localizer.Format("#SWAOD_NotAvailable");
+
+            double atmDepth = v.mainBody.atmosphereDepth;
+            if (altitude <= atmDepth) return Localizer.Format("#SWAOD_ReEntry");
+
+            double maxDecayAlt = atmDepth * naturalDecayAltitudeCutoff;
+            if (altitude > maxDecayAlt) return Localizer.Format("#SWAOD_NotAvailable");
+
+            bool canDecay = isStorming || isForced;
+            if (!canDecay && naturalDecayEnabled)
+            {
+                if (altitude < maxDecayAlt) canDecay = true;
+            }
+
+            if (!canDecay) return Localizer.Format("#SWAOD_NotAvailable");
+
+            double timeSeconds = GetCachedDecayTime(v, altitude, effectiveStormRate, cache, timeCache);
+            return FormatTime(timeSeconds);
         }
 
         // --- UI LOGIC ---------------------------------------------------------------
@@ -715,7 +794,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             double natural_da_dt = -(2.0 * v.orbit.semiMajorAxis * v.orbit.semiMajorAxis * vel * drag) / (v.mainBody.gravParameter * v.GetTotalMass() * 1000.0);
             natural_da_dt *= naturalDecayMultiplier;
             
-            double predictedTime = EstimateDecayTime(v, natural_da_dt, 0);
+            double predictedTime = EstimateDecayTime(v, v.altitude, 0);
             Debug.Log($"[OrbitalDecay] FULL PREDICTION from {v.altitude/1000:F1}km: {FormatTime(predictedTime)}");
         }
 
@@ -725,8 +804,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             {
                 GUI.skin = HighLogic.Skin;
                 Matrix4x4 oldMatrix = GUI.matrix;
-                GUIUtility.ScaleAroundPivot(new Vector2(uiScale, uiScale), Vector2.zero);    
-                windowRect = GUILayout.Window(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"));  
+                GUIUtility.ScaleAroundPivot(new Vector2(uiScale, uiScale), Vector2.zero);
+                GUIStyle windowTitleStyle = new GUIStyle(GUI.skin.window) { fontSize = fontSize + 1 };
+                windowRect = GUILayout.Window(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"), windowTitleStyle);  
                 GUI.matrix = oldMatrix;
             }
         }
@@ -741,6 +821,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUIStyle green = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(0.4f, 1f, 0.4f) }, fontSize = fontSize, fontStyle = FontStyle.Bold };
             GUIStyle yellow = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(1f, 1f, 0.4f) }, fontSize = fontSize };
             GUIStyle subHeader = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = fontSize - 1, alignment = TextAnchor.MiddleLeft };
+            GUIStyle destroyButtonStyle = GUI.skin.button;
+            string destroyLabel = Localizer.Format("#SWAOD_DestroyNow");
+            float destroyButtonWidth = destroyButtonStyle.CalcSize(new GUIContent(destroyLabel)).x + 12f;
 
             GUILayout.BeginHorizontal();
             GUILayout.Label(Localizer.Format("#SWAOD_Config"), bold);
@@ -771,12 +854,18 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         windowRect.x *= (oldScale / uiScale);
                         windowRect.y *= (oldScale / uiScale);
                         
-                        windowRect.width = 500;
+                        windowRect.width = GetWindowWidthForFontSize(fontSize);
                         windowRect.height = 0;
                     }
                     
                     GUILayout.Label(Localizer.Format("#SWAOD_FontSize", fontSize), subHeader);
+                    int oldFontSize = fontSize;
                     fontSize = (int)GUILayout.HorizontalSlider((float)fontSize, 10f, 20f);
+                    if (oldFontSize != fontSize)
+                    {
+                        ApplyWindowWidth(GetWindowWidthForFontSize(fontSize));
+                        windowRect.height = 0;
+                    }
 
                     GUILayout.Space(5);
 
@@ -810,7 +899,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         uiScale = 1.0f;
                         fontSize = 13;
                         toggleKey = KeyCode.Q;
-                        windowRect.width = 500;
+                        windowRect.width = GetWindowWidthForFontSize(fontSize);
                         windowRect.height = 0;
                     }
                     
@@ -889,6 +978,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (GUILayout.Toggle(currentFilter == FilterMode.Natural, Localizer.Format("#SWAOD_Filter_Natural"), GUI.skin.button)) currentFilter = FilterMode.Natural;
             if (GUILayout.Toggle(currentFilter == FilterMode.Storm, Localizer.Format("#SWAOD_Filter_Storm"), GUI.skin.button)) currentFilter = FilterMode.Storm;
             GUILayout.EndHorizontal();
+            
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.All, Localizer.Format("#SWAOD_Filter_Debris_All"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.All;
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.OnlyDebris, Localizer.Format("#SWAOD_Filter_Debris_Only"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.OnlyDebris;
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.ExcludeDebris, Localizer.Format("#SWAOD_Filter_Debris_Exclude"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.ExcludeDebris;
+            GUILayout.EndHorizontal();
 
             // --- Vessel List ---
             GUILayout.Space(5);
@@ -900,22 +995,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, scrollStyle, GUILayout.Height(400));
 
-            Vessel activeVessel = FlightGlobals.ActiveVessel;
             List<Vessel> vesselOrder = new List<Vessel>(FlightGlobals.Vessels.Count);
-            if (activeVessel != null && IsValidVessel(activeVessel))
-            {
-                vesselOrder.Add(activeVessel);
-            }
             foreach (Vessel v in FlightGlobals.Vessels)
             {
-                if (v == activeVessel) continue;
+                if (!IsValidVessel(v)) continue;
                 vesselOrder.Add(v);
             }
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            vesselOrder.Sort((a, b) =>
+            {
+                bool aIsActive = activeVessel != null && a == activeVessel;
+                bool bIsActive = activeVessel != null && b == activeVessel;
+                if (aIsActive && !bIsActive) return -1;
+                if (!aIsActive && bIsActive) return 1;
+                return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
+            });
 
             foreach (Vessel v in vesselOrder)
             {
-                if (!IsValidVessel(v)) continue;
-
                 bool stormActive = false;
 #if KERBALISM
                 stormActive = StormInProgress(v);
@@ -923,9 +1020,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 bool isStorming = stormActive;
                 bool isForced = debugForceStorm;
                 bool isNatural = false;
-
-                double da_dt_display = 0;
-
+                bool stormInRange = false;
 
                 if (naturalDecayEnabled && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
                 {
@@ -939,19 +1034,27 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     if (dens > 1e-22)
                     {
                         isNatural = true;
-                        double vSq = v.mainBody.gravParameter * (2.0 / (v.altitude + v.mainBody.Radius) - 1.0 / v.orbit.semiMajorAxis);
-                        double vel = Math.Sqrt(Math.Max(0, vSq));
-                        double area = Math.Pow(v.GetTotalMass(), 0.666) * 4.0;
-                        double drag = 0.5 * dens * vSq * 2.0 * area;
-                        double natural_da_dt = -(2.0 * v.orbit.semiMajorAxis * v.orbit.semiMajorAxis * vel * drag) / (v.mainBody.gravParameter * v.GetTotalMass() * 1000.0);
-                        da_dt_display += natural_da_dt * naturalDecayMultiplier;
+                    }
+                }
+
+                if (isStorming || isForced)
+                {
+                    if (v.mainBody.atmosphere)
+                    {
+                        double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                        stormInRange = v.altitude <= maxAlt;
+                    }
+                    else if (applyStormDecayToNoAtmosphereBody)
+                    {
+                        double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                        stormInRange = v.altitude <= maxAlt;
                     }
                 }
 
                 // Calculate Storm Decay Rate
                 double effectiveStormRate = 0;
                 double currentStormRate = 0;
-                if (isStorming || isForced)
+                if (stormInRange)
                 {
                     double distanceFactor = 1.0;
                     if (stormDistanceScaling)
@@ -962,8 +1065,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     }
                     currentStormRate = stormDecayRate * distanceFactor;
                     
-                    double storm_da_dt = -v.orbit.semiMajorAxis * currentStormRate;
-                    da_dt_display += storm_da_dt;
                     effectiveStormRate = currentStormRate;
                 }
 
@@ -976,6 +1077,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     case FilterMode.Storm: show = isStorming || isForced; break;
                 }
                 if (!show) continue;
+                
+                bool debrisMatch = true;
+                switch (currentDebrisFilter)
+                {
+                    case DebrisFilterMode.All: debrisMatch = true; break;
+                    case DebrisFilterMode.OnlyDebris: debrisMatch = v.vesselType == VesselType.Debris; break;
+                    case DebrisFilterMode.ExcludeDebris: debrisMatch = v.vesselType != VesselType.Debris; break;
+                }
+                if (!debrisMatch) continue;
 
                 GUILayout.BeginVertical("box");
                 {
@@ -983,22 +1093,41 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     GUILayout.Label($"<b>{v.vesselName}</b>", new GUIStyle(GUI.skin.label) { richText = true, fontSize = fontSize, fontStyle = FontStyle.Bold });
                     GUILayout.FlexibleSpace();
                     GUILayout.Label($"{v.mainBody.name}", yellow);
+                    bool showDestroyButton = v.loaded && v.vesselType != VesselType.Debris && v.mainBody.atmosphere && v.orbit.PeA < v.mainBody.atmosphereDepth;
+                    if (showDestroyButton)
+                    {
+                        GUILayout.Space(6);
+                        if (GUILayout.Button(destroyLabel, destroyButtonStyle, GUILayout.Width(destroyButtonWidth)))
+                        {
+                            DestroyLoadedVessel(v);
+                        }
+                    }
                     GUILayout.EndHorizontal();
 
                     GUILayout.BeginHorizontal();
                     GUILayout.BeginVertical();
-                    GUILayout.Label($"Pe Alt: {v.orbit.PeA / 1000:F3} km", normal);
-                    GUILayout.Label($"Inc: {v.orbit.inclination:F2}°", normal);
-                    GUILayout.Label($"Ecc: {v.orbit.eccentricity:F3}", normal);
+                    string peAltText = Localizer.Format("#SWAOD_PeAlt", FormatAltitude(v.orbit.PeA));
+                    string apAltText = Localizer.Format("#SWAOD_ApAlt", FormatAltitude(v.orbit.ApA));
+                    string peTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.PeA, isStorming, isForced, effectiveStormRate, cachedDecayTimesPe, lastDecayCalcTimePe));
+                    string apTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.ApA, isStorming, isForced, effectiveStormRate, cachedDecayTimesAp, lastDecayCalcTimeAp));
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label(peAltText, normal, GUILayout.MinWidth(300f * (fontSize / (float)baseFontSize)));
+                    GUILayout.Space(28f * (fontSize / (float)baseFontSize));
+                    GUILayout.Label(peTimeText, normal);
+                    GUILayout.EndHorizontal();
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label(apAltText, normal, GUILayout.MinWidth(300f * (fontSize / (float)baseFontSize)));
+                    GUILayout.Space(28f * (fontSize / (float)baseFontSize));
+                    GUILayout.Label(apTimeText, normal);
+                    GUILayout.EndHorizontal();
+                    GUILayout.Label(Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2")), normal);
+                    GUILayout.Label(Localizer.Format("#SWAOD_Ecc", v.orbit.eccentricity.ToString("F3")), normal);
+                    if (debugMode && stormInRange)
+                    {
+                        GUILayout.Label(Localizer.Format("#SWAOD_StormRate_Debug", currentStormRate.ToString("E2")), red);
+                    }
                     GUILayout.EndVertical();
                     GUILayout.FlexibleSpace();
-                    
-                    if (debugMode && (isStorming || isForced))
-                    {
-                        GUILayout.BeginVertical();
-                        GUILayout.Label(Localizer.Format("#SWAOD_StormRate_Debug", currentStormRate.ToString("E2")), red);
-                        GUILayout.EndVertical();
-                    }
                     GUILayout.EndHorizontal();
 
                     GUILayout.Space(4);
@@ -1008,44 +1137,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     string statusText = Localizer.Format("#SWAOD_Status_Stable");
                     GUIStyle statusStyle = green;
                     
-                    if ((isStorming || isForced) && isNatural) { statusText = Localizer.Format("#SWAOD_Status_StormPlus"); statusStyle = red; }
-                    else if (isStorming || isForced) { statusText = Localizer.Format("#SWAOD_Status_StormDecay"); statusStyle = red; }
+                    if (stormInRange && isNatural) { statusText = Localizer.Format("#SWAOD_Status_StormPlus"); statusStyle = red; }
+                    else if (stormInRange) { statusText = Localizer.Format("#SWAOD_Status_StormDecay"); statusStyle = red; }
                     else if (isNatural) { statusText = Localizer.Format("#SWAOD_Status_NaturalDecay"); statusStyle = yellow; }
                     
                     GUILayout.Label(statusText, statusStyle);
                     
-                    GUILayout.FlexibleSpace();
-
-                    // Prediction
-                    bool showPrediction = da_dt_display < -1e-20;
-                    
-                    // Also show prediction if PeA is within natural decay range (even if current altitude is high)
-                    if (!showPrediction && naturalDecayEnabled && v.mainBody.atmosphere)
-                    {
-                        double maxDecayAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                        if (v.orbit.PeA < maxDecayAlt) showPrediction = true;
-                    }
-
-                    if (showPrediction)
-                    {
-                        double peA = v.orbit.PeA;
-                        double distToAtm = peA - v.mainBody.atmosphereDepth;
-                        
-                        if (distToAtm > 0)
-                        {
-                            double timeSeconds = GetCachedDecayTime(v, da_dt_display, effectiveStormRate);
-                            string timeStr = FormatTime(timeSeconds);
-                            GUILayout.Label(Localizer.Format("#SWAOD_EntryTime", timeStr), yellow);
-                        }
-                        else
-                        {
-                            GUILayout.Label(Localizer.Format("#SWAOD_ReEntry"), red);
-                        }
-                    }
-                    else
-                    {
-                        GUILayout.Label("--", normal);
-                    }
                     GUILayout.EndHorizontal();
                 }
                 GUILayout.EndVertical();
@@ -1055,6 +1152,19 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUILayout.EndVertical();
 
             GUI.DragWindow();
+        }
+
+        private float GetWindowWidthForFontSize(int size)
+        {
+            return baseWindowWidth * (size / (float)baseFontSize);
+        }
+
+        private void ApplyWindowWidth(float newWidth)
+        {
+            float previousWidth = windowRect.width > 0f ? windowRect.width : baseWindowWidth;
+            float right = windowRect.x + previousWidth;
+            windowRect.width = newWidth;
+            windowRect.x = right - newWidth;
         }
     }
 }
