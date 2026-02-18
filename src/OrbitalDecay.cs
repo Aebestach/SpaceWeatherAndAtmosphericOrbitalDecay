@@ -60,6 +60,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private FilterMode currentFilter = FilterMode.All;
         private enum DebrisFilterMode { All, OnlyDebris, ExcludeDebris }
         private DebrisFilterMode currentDebrisFilter = DebrisFilterMode.All;
+        private int currentBodyFilterIndex = 0;
+        private List<CelestialBody> bodyFilterBodies = new List<CelestialBody>();
+        private string[] bodyFilterNames = Array.Empty<string>();
+        private int bodyFilterSignature = 0;
 
         // Caching for Performance
         private Dictionary<Guid, double> cachedDecayTimesPe = new Dictionary<Guid, double>();
@@ -1007,6 +1011,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 GUILayout.EndVertical();
             }
 
+            UpdateBodyFilterCache();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal);
+            GUILayout.FlexibleSpace();
+            if (bodyFilterNames.Length > 0)
+            {
+                if (GUILayout.Button("<", GUI.skin.button, GUILayout.Width(24)))
+                {
+                    currentBodyFilterIndex = (currentBodyFilterIndex - 1 + bodyFilterNames.Length) % bodyFilterNames.Length;
+                }
+                GUILayout.Label(bodyFilterNames[currentBodyFilterIndex], normal);
+                if (GUILayout.Button(">", GUI.skin.button, GUILayout.Width(24)))
+                {
+                    currentBodyFilterIndex = (currentBodyFilterIndex + 1) % bodyFilterNames.Length;
+                }
+            }
+            GUILayout.EndHorizontal();
+
             // --- Filter Buttons ---
             GUILayout.BeginHorizontal();
             if (GUILayout.Toggle(currentFilter == FilterMode.All, Localizer.Format("#SWAOD_Filter_All"), GUI.skin.button)) currentFilter = FilterMode.All;
@@ -1110,6 +1132,35 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUI.DragWindow();
         }
 
+        private void UpdateBodyFilterCache()
+        {
+            int signature = 17;
+            List<CelestialBody> bodies = FlightGlobals.Bodies;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                CelestialBody body = bodies[i];
+                signature = signature * 31 + body.name.GetHashCode();
+            }
+
+            if (signature == bodyFilterSignature && bodyFilterNames.Length > 0) return;
+
+            bodyFilterSignature = signature;
+            bodyFilterBodies.Clear();
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                bodyFilterBodies.Add(bodies[i]);
+            }
+
+            bodyFilterNames = new string[bodyFilterBodies.Count + 1];
+            bodyFilterNames[0] = Localizer.Format("#SWAOD_Filter_AllBodies");
+            for (int i = 0; i < bodyFilterBodies.Count; i++)
+            {
+                bodyFilterNames[i + 1] = bodyFilterBodies[i].name;
+            }
+
+            if (currentBodyFilterIndex >= bodyFilterNames.Length) currentBodyFilterIndex = 0;
+        }
+
         private void UpdateVesselCache()
         {
             int signature = 17;
@@ -1173,6 +1224,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 Vessel = v,
                 IsForced = debugForceStorm
             };
+
+            if (currentBodyFilterIndex > 0)
+            {
+                int bodyIndex = currentBodyFilterIndex - 1;
+                if (bodyIndex >= bodyFilterBodies.Count || v.mainBody != bodyFilterBodies[bodyIndex]) return false;
+            }
 
             bool stormActive = false;
 #if KERBALISM
