@@ -1136,6 +1136,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         {
             int signature = 17;
             List<CelestialBody> bodies = FlightGlobals.Bodies;
+            if (bodies == null)
+            {
+                bodyFilterSignature = 0;
+                bodyFilterBodies.Clear();
+                bodyFilterNames = Array.Empty<string>();
+                currentBodyFilterIndex = 0;
+                return;
+            }
             for (int i = 0; i < bodies.Count; i++)
             {
                 CelestialBody body = bodies[i];
@@ -1170,6 +1178,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             signature = signature * 31 + activeId.GetHashCode();
 
             List<Vessel> vessels = FlightGlobals.Vessels;
+            if (vessels == null)
+            {
+                cachedVesselSignature = 0;
+                cachedValidVesselCount = 0;
+                cachedActiveVesselId = Guid.Empty;
+                cachedVesselOrder.Clear();
+                cachedVisibleVessels.Clear();
+                return;
+            }
             for (int i = 0; i < vessels.Count; i++)
             {
                 Vessel v = vessels[i];
