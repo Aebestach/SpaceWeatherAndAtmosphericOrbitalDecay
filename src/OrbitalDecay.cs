@@ -67,6 +67,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private Dictionary<Guid, double> cachedDecayTimesAp = new Dictionary<Guid, double>();
         private Dictionary<Guid, float> lastDecayCalcTimeAp = new Dictionary<Guid, float>();
         private const float CACHE_INTERVAL = 1.0f;
+        private const float VESSEL_LIST_CACHE_INTERVAL = 2.0f;
+        private float lastVesselListCacheTime = -1f;
+        private int lastVesselCount = -1;
+        private Guid lastActiveVesselId = Guid.Empty;
+        private bool lastDebugForceStorm = false;
+        private List<Vessel> cachedVesselOrder = new List<Vessel>();
+        private Dictionary<Guid, Vessel> vesselIndex = new Dictionary<Guid, Vessel>();
+        private Dictionary<Guid, VesselUiState> vesselUiStateCache = new Dictionary<Guid, VesselUiState>();
+        private int cachedTrackedVesselCount = 0;
+
+        private struct VesselUiState
+        {
+            public bool IsStorming;
+            public bool IsNatural;
+            public bool StormInRange;
+            public double EffectiveStormRate;
+            public double CurrentStormRate;
+        }
 
         void Start()
         {
@@ -798,6 +816,132 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             Debug.Log($"[OrbitalDecay] FULL PREDICTION from {v.altitude/1000:F1}km: {FormatTime(predictedTime)}");
         }
 
+        private void UpdateVesselListCache()
+        {
+            float now = Time.realtimeSinceStartup;
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            Guid activeId = activeVessel != null ? activeVessel.id : Guid.Empty;
+
+            bool needsRefresh = lastVesselListCacheTime < 0f
+                || now - lastVesselListCacheTime >= VESSEL_LIST_CACHE_INTERVAL
+                || FlightGlobals.Vessels.Count != lastVesselCount
+                || activeId != lastActiveVesselId
+                || lastDebugForceStorm != debugForceStorm;
+
+            if (!needsRefresh) return;
+
+            lastVesselListCacheTime = now;
+            lastVesselCount = FlightGlobals.Vessels.Count;
+            lastActiveVesselId = activeId;
+            lastDebugForceStorm = debugForceStorm;
+
+            cachedVesselOrder.Clear();
+            vesselIndex.Clear();
+            cachedTrackedVesselCount = 0;
+
+            for (int i = 0; i < FlightGlobals.Vessels.Count; i++)
+            {
+                Vessel v = FlightGlobals.Vessels[i];
+                if (!IsValidVessel(v)) continue;
+                cachedTrackedVesselCount++;
+                cachedVesselOrder.Add(v);
+                vesselIndex[v.id] = v;
+
+                bool stormActive = false;
+#if KERBALISM
+                stormActive = StormInProgress(v);
+#endif
+                bool isStorming = stormActive;
+                bool isForced = debugForceStorm;
+
+                bool isNatural = false;
+                bool stormInRange = false;
+
+                if (naturalDecayEnabled && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
+                {
+                    double dens = GetExosphericDensity(v.mainBody, v.altitude);
+                    if (v.altitude < v.mainBody.atmosphereDepth)
+                    {
+                        dens *= 10.0;
+                    }
+                    if (dens > 1e-22)
+                    {
+                        isNatural = true;
+                    }
+                }
+
+                if (isStorming || isForced)
+                {
+                    if (v.mainBody.atmosphere)
+                    {
+                        double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                        stormInRange = v.altitude <= maxAlt;
+                    }
+                    else if (applyStormDecayToNoAtmosphereBody)
+                    {
+                        double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                        stormInRange = v.altitude <= maxAlt;
+                    }
+                }
+
+                double effectiveStormRate = 0;
+                double currentStormRate = 0;
+                if (stormInRange)
+                {
+                    double distanceFactor = 1.0;
+                    if (stormDistanceScaling)
+                    {
+                        double dist = GetDistanceToSun(v);
+                        dist = Math.Max(dist, 1000.0);
+                        distanceFactor = Math.Pow(AU / dist, 2);
+                    }
+                    currentStormRate = stormDecayRate * distanceFactor;
+                    effectiveStormRate = currentStormRate;
+                }
+
+                vesselUiStateCache[v.id] = new VesselUiState
+                {
+                    IsStorming = isStorming,
+                    IsNatural = isNatural,
+                    StormInRange = stormInRange,
+                    EffectiveStormRate = effectiveStormRate,
+                    CurrentStormRate = currentStormRate
+                };
+            }
+
+            if (cachedVesselOrder.Count > 1)
+            {
+                cachedVesselOrder.Sort((a, b) =>
+                {
+                    bool aIsActive = activeVessel != null && a == activeVessel;
+                    bool bIsActive = activeVessel != null && b == activeVessel;
+                    if (aIsActive && !bIsActive) return -1;
+                    if (!aIsActive && bIsActive) return 1;
+                    return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
+                });
+            }
+
+            if (vesselUiStateCache.Count != cachedVesselOrder.Count)
+            {
+                List<Guid> removeIds = null;
+                foreach (var key in vesselUiStateCache.Keys)
+                {
+                    if (!vesselIndex.ContainsKey(key))
+                    {
+                        if (removeIds == null) removeIds = new List<Guid>();
+                        removeIds.Add(key);
+                    }
+                }
+                if (removeIds != null)
+                {
+                    for (int i = 0; i < removeIds.Count; i++)
+                    {
+                        vesselUiStateCache.Remove(removeIds[i]);
+                    }
+                }
+            }
+        }
+
         void OnGUI()
         {
             if (showGui)
@@ -987,7 +1131,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
             // --- Vessel List ---
             GUILayout.Space(5);
-            GUILayout.Label(Localizer.Format("#SWAOD_TrackedVessels", FlightGlobals.Vessels.FindAll(v => IsValidVessel(v)).Count), bold);
+            UpdateVesselListCache();
+            GUILayout.Label(Localizer.Format("#SWAOD_TrackedVessels", cachedTrackedVesselCount), bold);
 
             GUIStyle scrollStyle = new GUIStyle(GUI.skin.scrollView);
             scrollStyle.padding.left = 0; 
@@ -995,78 +1140,19 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, scrollStyle, GUILayout.Height(400));
 
-            List<Vessel> vesselOrder = new List<Vessel>(FlightGlobals.Vessels.Count);
-            foreach (Vessel v in FlightGlobals.Vessels)
+            foreach (Vessel v in cachedVesselOrder)
             {
-                if (!IsValidVessel(v)) continue;
-                vesselOrder.Add(v);
-            }
-            Vessel activeVessel = FlightGlobals.ActiveVessel;
-            vesselOrder.Sort((a, b) =>
-            {
-                bool aIsActive = activeVessel != null && a == activeVessel;
-                bool bIsActive = activeVessel != null && b == activeVessel;
-                if (aIsActive && !bIsActive) return -1;
-                if (!aIsActive && bIsActive) return 1;
-                return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
-            });
-
-            foreach (Vessel v in vesselOrder)
-            {
-                bool stormActive = false;
-#if KERBALISM
-                stormActive = StormInProgress(v);
-#endif
-                bool isStorming = stormActive;
+                VesselUiState state;
+                if (!vesselUiStateCache.TryGetValue(v.id, out state))
+                {
+                    state = new VesselUiState();
+                }
+                bool isStorming = state.IsStorming;
                 bool isForced = debugForceStorm;
-                bool isNatural = false;
-                bool stormInRange = false;
-
-                if (naturalDecayEnabled && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
-                {
-                    double dens = GetExosphericDensity(v.mainBody, v.altitude);
-                    
-                    if (v.altitude < v.mainBody.atmosphereDepth)
-                    {
-                         dens *= 10.0;
-                    }
-
-                    if (dens > 1e-22)
-                    {
-                        isNatural = true;
-                    }
-                }
-
-                if (isStorming || isForced)
-                {
-                    if (v.mainBody.atmosphere)
-                    {
-                        double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                        stormInRange = v.altitude <= maxAlt;
-                    }
-                    else if (applyStormDecayToNoAtmosphereBody)
-                    {
-                        double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
-                        stormInRange = v.altitude <= maxAlt;
-                    }
-                }
-
-                // Calculate Storm Decay Rate
-                double effectiveStormRate = 0;
-                double currentStormRate = 0;
-                if (stormInRange)
-                {
-                    double distanceFactor = 1.0;
-                    if (stormDistanceScaling)
-                    {
-                        double dist = GetDistanceToSun(v);
-                        dist = Math.Max(dist, 1000.0);
-                        distanceFactor = Math.Pow(AU / dist, 2);
-                    }
-                    currentStormRate = stormDecayRate * distanceFactor;
-                    
-                    effectiveStormRate = currentStormRate;
-                }
+                bool isNatural = state.IsNatural;
+                bool stormInRange = state.StormInRange;
+                double effectiveStormRate = state.EffectiveStormRate;
+                double currentStormRate = state.CurrentStormRate;
 
                 bool show = false;
                 switch (currentFilter)
