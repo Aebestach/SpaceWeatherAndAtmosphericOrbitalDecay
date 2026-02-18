@@ -35,7 +35,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     *   **Configurable**: Toggle whether bodies without atmospheres (e.g., Mun) are affected by storm decay in `Settings.cfg` (Disabled by default).
 
 *   **📊 Real-time Monitoring UI**
-    *   Provides a control panel to monitor the status of all tracked vessels.
+    *   Provide a control panel to monitor the status of on-orbit/sub-orbit vehicles.
     *   Real-time view of apogee/perigee orbit height, attenuation status and **estimated re-entry time of apogee/perigee**
     *   Filter vessel lists by status.
 
@@ -76,7 +76,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 *   **Config Panel**: Click `Show Config` to adjust UI scale, font size, view debug info, etc. in-game.
 
 ### Important Notes
-*   The re-entry time displayed in the UI may differ from the actual re-entry time due to computational errors and total stride length. But the estimated value will be less than the actual re-entry time.
+*   The re-entry time displayed in the UI may differ from the actual re-entry time due to computational errors and total stride length. But the estimated value will be less than the actual re-entry time (About 10 minutes less).
 
 ## ⚙️ Configuration
 
