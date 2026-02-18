@@ -60,6 +60,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private FilterMode currentFilter = FilterMode.All;
         private enum DebrisFilterMode { All, OnlyDebris, ExcludeDebris }
         private DebrisFilterMode currentDebrisFilter = DebrisFilterMode.All;
+        private int currentBodyFilterIndex = 0;
+        private List<CelestialBody> bodyFilterBodies = new List<CelestialBody>();
+        private string[] bodyFilterNames = Array.Empty<string>();
+        private int bodyFilterSignature = 0;
 
         // Caching for Performance
         private Dictionary<Guid, double> cachedDecayTimesPe = new Dictionary<Guid, double>();
@@ -67,6 +71,22 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private Dictionary<Guid, double> cachedDecayTimesAp = new Dictionary<Guid, double>();
         private Dictionary<Guid, float> lastDecayCalcTimeAp = new Dictionary<Guid, float>();
         private const float CACHE_INTERVAL = 1.0f;
+        private List<Vessel> cachedVesselOrder = new List<Vessel>();
+        private int cachedValidVesselCount = 0;
+        private int cachedVesselSignature = 0;
+        private Guid cachedActiveVesselId = Guid.Empty;
+        private List<VesselDisplayState> cachedVisibleVessels = new List<VesselDisplayState>();
+
+        private struct VesselDisplayState
+        {
+            public Vessel Vessel;
+            public bool IsStorming;
+            public bool IsForced;
+            public bool IsNatural;
+            public bool StormInRange;
+            public double EffectiveStormRate;
+            public double CurrentStormRate;
+        }
 
         void Start()
         {
@@ -633,24 +653,44 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private double EstimateDecayTime(Vessel v, double startAlt, double effectiveStormRate)
         {
             // Reentry time calculated based on Periapsis, ignoring Apoapsis.
-            double atmDepth = v.mainBody.atmosphereDepth;
+            CelestialBody body = v.mainBody;
+            double atmDepth = body.atmosphereDepth;
             double targetAlt = atmDepth;
             
             if (startAlt <= atmDepth) return 0;
+
+            if (!naturalDecayEnabled && effectiveStormRate > 0)
+            {
+                double startR = body.Radius + startAlt;
+                double endR = body.Radius + atmDepth;
+                double time = Math.Log(startR / endR) / effectiveStormRate;
+                if (time < 0) time = 0;
+                return time;
+            }
             
             double simAlt = startAlt;
             double totalTime = 0;
-            double stepAlt = (startAlt - atmDepth) / 10.0;
+            double range = startAlt - atmDepth;
+            double stepAlt = range / 10.0;
             
             // Limit max iterations for performance
             int maxSteps = 100; 
-            stepAlt = (startAlt - atmDepth) / (double)maxSteps;
+            double stepScale = atmDepth * 0.2;
+            if (stepScale > 0)
+            {
+                double estimatedSteps = range / stepScale;
+                if (estimatedSteps < 20.0) maxSteps = 20;
+                else if (estimatedSteps < 100.0) maxSteps = (int)Math.Ceiling(estimatedSteps);
+            }
+            stepAlt = range / (double)maxSteps;
             
-            double mu = v.mainBody.gravParameter;
-            double R = v.mainBody.Radius;
-            double m_kg = v.GetTotalMass() * 1000.0;
+            double mu = body.gravParameter;
+            double R = body.Radius;
+            double mass = v.GetTotalMass();
+            if (mass <= 0.001) mass = 0.1;
+            double m_kg = mass * 1000.0;
             if (m_kg < 1.0) m_kg = 100.0; // Safety
-            double area = Math.Pow(v.GetTotalMass(), 0.666) * 4.0;
+            double area = Math.Pow(mass, 0.666) * 4.0;
             double Cd = 2.0;
 
             for (int i = 0; i < maxSteps; i++)
@@ -660,7 +700,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 double simSMA = simR;
                 double simVel = Math.Sqrt(mu / simR);
                 
-                double simRho = GetExosphericDensity(v.mainBody, midAlt);
+                double simRho = GetExosphericDensity(body, midAlt);
 
                 if (simRho < 1e-22) simRho = 1e-22;
 
@@ -971,6 +1011,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 GUILayout.EndVertical();
             }
 
+            UpdateBodyFilterCache();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal);
+            GUILayout.FlexibleSpace();
+            if (bodyFilterNames.Length > 0)
+            {
+                if (GUILayout.Button("<", GUI.skin.button, GUILayout.Width(24)))
+                {
+                    currentBodyFilterIndex = (currentBodyFilterIndex - 1 + bodyFilterNames.Length) % bodyFilterNames.Length;
+                }
+                GUILayout.Label(bodyFilterNames[currentBodyFilterIndex], normal);
+                if (GUILayout.Button(">", GUI.skin.button, GUILayout.Width(24)))
+                {
+                    currentBodyFilterIndex = (currentBodyFilterIndex + 1) % bodyFilterNames.Length;
+                }
+            }
+            GUILayout.EndHorizontal();
+
             // --- Filter Buttons ---
             GUILayout.BeginHorizontal();
             if (GUILayout.Toggle(currentFilter == FilterMode.All, Localizer.Format("#SWAOD_Filter_All"), GUI.skin.button)) currentFilter = FilterMode.All;
@@ -986,8 +1044,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUILayout.EndHorizontal();
 
             // --- Vessel List ---
+            UpdateVesselCache();
             GUILayout.Space(5);
-            GUILayout.Label(Localizer.Format("#SWAOD_TrackedVessels", FlightGlobals.Vessels.FindAll(v => IsValidVessel(v)).Count), bold);
+            PopulateVisibleVessels();
+            GUILayout.Label(Localizer.Format("#SWAOD_TrackedVessels", cachedVisibleVessels.Count), bold);
 
             GUIStyle scrollStyle = new GUIStyle(GUI.skin.scrollView);
             scrollStyle.padding.left = 0; 
@@ -995,97 +1055,15 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             
             scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, scrollStyle, GUILayout.Height(400));
 
-            List<Vessel> vesselOrder = new List<Vessel>(FlightGlobals.Vessels.Count);
-            foreach (Vessel v in FlightGlobals.Vessels)
+            foreach (VesselDisplayState state in cachedVisibleVessels)
             {
-                if (!IsValidVessel(v)) continue;
-                vesselOrder.Add(v);
-            }
-            Vessel activeVessel = FlightGlobals.ActiveVessel;
-            vesselOrder.Sort((a, b) =>
-            {
-                bool aIsActive = activeVessel != null && a == activeVessel;
-                bool bIsActive = activeVessel != null && b == activeVessel;
-                if (aIsActive && !bIsActive) return -1;
-                if (!aIsActive && bIsActive) return 1;
-                return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
-            });
-
-            foreach (Vessel v in vesselOrder)
-            {
-                bool stormActive = false;
-#if KERBALISM
-                stormActive = StormInProgress(v);
-#endif
-                bool isStorming = stormActive;
-                bool isForced = debugForceStorm;
-                bool isNatural = false;
-                bool stormInRange = false;
-
-                if (naturalDecayEnabled && v.mainBody.atmosphere && v.altitude < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
-                {
-                    double dens = GetExosphericDensity(v.mainBody, v.altitude);
-                    
-                    if (v.altitude < v.mainBody.atmosphereDepth)
-                    {
-                         dens *= 10.0;
-                    }
-
-                    if (dens > 1e-22)
-                    {
-                        isNatural = true;
-                    }
-                }
-
-                if (isStorming || isForced)
-                {
-                    if (v.mainBody.atmosphere)
-                    {
-                        double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                        stormInRange = v.altitude <= maxAlt;
-                    }
-                    else if (applyStormDecayToNoAtmosphereBody)
-                    {
-                        double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
-                        stormInRange = v.altitude <= maxAlt;
-                    }
-                }
-
-                // Calculate Storm Decay Rate
-                double effectiveStormRate = 0;
-                double currentStormRate = 0;
-                if (stormInRange)
-                {
-                    double distanceFactor = 1.0;
-                    if (stormDistanceScaling)
-                    {
-                        double dist = GetDistanceToSun(v);
-                        dist = Math.Max(dist, 1000.0);
-                        distanceFactor = Math.Pow(AU / dist, 2);
-                    }
-                    currentStormRate = stormDecayRate * distanceFactor;
-                    
-                    effectiveStormRate = currentStormRate;
-                }
-
-                bool show = false;
-                switch (currentFilter)
-                {
-                    case FilterMode.All: show = true; break;
-                    case FilterMode.Stable: show = !isNatural && !isStorming && !isForced; break;
-                    case FilterMode.Natural: show = isNatural; break;
-                    case FilterMode.Storm: show = isStorming || isForced; break;
-                }
-                if (!show) continue;
-                
-                bool debrisMatch = true;
-                switch (currentDebrisFilter)
-                {
-                    case DebrisFilterMode.All: debrisMatch = true; break;
-                    case DebrisFilterMode.OnlyDebris: debrisMatch = v.vesselType == VesselType.Debris; break;
-                    case DebrisFilterMode.ExcludeDebris: debrisMatch = v.vesselType != VesselType.Debris; break;
-                }
-                if (!debrisMatch) continue;
+                Vessel v = state.Vessel;
+                bool isStorming = state.IsStorming;
+                bool isForced = state.IsForced;
+                bool isNatural = state.IsNatural;
+                bool stormInRange = state.StormInRange;
+                double effectiveStormRate = state.EffectiveStormRate;
+                double currentStormRate = state.CurrentStormRate;
 
                 GUILayout.BeginVertical("box");
                 {
@@ -1152,6 +1130,178 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUILayout.EndVertical();
 
             GUI.DragWindow();
+        }
+
+        private void UpdateBodyFilterCache()
+        {
+            int signature = 17;
+            List<CelestialBody> bodies = FlightGlobals.Bodies;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                CelestialBody body = bodies[i];
+                signature = signature * 31 + body.name.GetHashCode();
+            }
+
+            if (signature == bodyFilterSignature && bodyFilterNames.Length > 0) return;
+
+            bodyFilterSignature = signature;
+            bodyFilterBodies.Clear();
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                bodyFilterBodies.Add(bodies[i]);
+            }
+
+            bodyFilterNames = new string[bodyFilterBodies.Count + 1];
+            bodyFilterNames[0] = Localizer.Format("#SWAOD_Filter_AllBodies");
+            for (int i = 0; i < bodyFilterBodies.Count; i++)
+            {
+                bodyFilterNames[i + 1] = bodyFilterBodies[i].name;
+            }
+
+            if (currentBodyFilterIndex >= bodyFilterNames.Length) currentBodyFilterIndex = 0;
+        }
+
+        private void UpdateVesselCache()
+        {
+            int signature = 17;
+            int validCount = 0;
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            Guid activeId = activeVessel != null ? activeVessel.id : Guid.Empty;
+            signature = signature * 31 + activeId.GetHashCode();
+
+            List<Vessel> vessels = FlightGlobals.Vessels;
+            for (int i = 0; i < vessels.Count; i++)
+            {
+                Vessel v = vessels[i];
+                if (!IsValidVessel(v)) continue;
+                validCount++;
+                signature = signature * 31 + v.id.GetHashCode();
+                if (!string.IsNullOrEmpty(v.vesselName))
+                {
+                    signature = signature * 31 + v.vesselName.GetHashCode();
+                }
+            }
+
+            if (signature == cachedVesselSignature && validCount == cachedValidVesselCount && activeId == cachedActiveVesselId) return;
+
+            cachedVesselSignature = signature;
+            cachedValidVesselCount = validCount;
+            cachedActiveVesselId = activeId;
+
+            cachedVesselOrder.Clear();
+            for (int i = 0; i < vessels.Count; i++)
+            {
+                Vessel v = vessels[i];
+                if (!IsValidVessel(v)) continue;
+                cachedVesselOrder.Add(v);
+            }
+
+            cachedVesselOrder.Sort((a, b) =>
+            {
+                bool aIsActive = a.id == cachedActiveVesselId;
+                bool bIsActive = b.id == cachedActiveVesselId;
+                if (aIsActive && !bIsActive) return -1;
+                if (!aIsActive && bIsActive) return 1;
+                return string.Compare(a.vesselName, b.vesselName, StringComparison.OrdinalIgnoreCase);
+            });
+        }
+
+        private void PopulateVisibleVessels()
+        {
+            cachedVisibleVessels.Clear();
+            for (int i = 0; i < cachedVesselOrder.Count; i++)
+            {
+                Vessel v = cachedVesselOrder[i];
+                if (!TryBuildDisplayState(v, out VesselDisplayState state)) continue;
+                cachedVisibleVessels.Add(state);
+            }
+        }
+
+        private bool TryBuildDisplayState(Vessel v, out VesselDisplayState state)
+        {
+            state = new VesselDisplayState
+            {
+                Vessel = v,
+                IsForced = debugForceStorm
+            };
+
+            if (currentBodyFilterIndex > 0)
+            {
+                int bodyIndex = currentBodyFilterIndex - 1;
+                if (bodyIndex >= bodyFilterBodies.Count || v.mainBody != bodyFilterBodies[bodyIndex]) return false;
+            }
+
+            bool stormActive = false;
+#if KERBALISM
+            stormActive = StormInProgress(v);
+#endif
+            state.IsStorming = stormActive;
+            state.IsNatural = false;
+            state.StormInRange = false;
+            state.EffectiveStormRate = 0;
+            state.CurrentStormRate = 0;
+
+            double periapsisAlt = v.orbit.PeA;
+            if (naturalDecayEnabled && v.mainBody.atmosphere && periapsisAlt < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
+            {
+                double dens = GetExosphericDensity(v.mainBody, periapsisAlt);
+                if (periapsisAlt < v.mainBody.atmosphereDepth)
+                {
+                    dens *= 10.0;
+                }
+                if (dens > 1e-22)
+                {
+                    state.IsNatural = true;
+                }
+            }
+
+            if (state.IsStorming || state.IsForced)
+            {
+                if (v.mainBody.atmosphere)
+                {
+                    double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
+                    state.StormInRange = periapsisAlt <= maxAlt;
+                }
+                else if (applyStormDecayToNoAtmosphereBody)
+                {
+                    double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
+                    state.StormInRange = periapsisAlt <= maxAlt;
+                }
+            }
+
+            if (state.StormInRange)
+            {
+                double distanceFactor = 1.0;
+                if (stormDistanceScaling)
+                {
+                    double dist = GetDistanceToSun(v);
+                    dist = Math.Max(dist, 1000.0);
+                    distanceFactor = Math.Pow(AU / dist, 2);
+                }
+                state.CurrentStormRate = stormDecayRate * distanceFactor;
+                state.EffectiveStormRate = state.CurrentStormRate;
+            }
+
+            bool show = false;
+            switch (currentFilter)
+            {
+                case FilterMode.All: show = true; break;
+                case FilterMode.Stable: show = !state.IsNatural && !state.IsStorming && !state.IsForced; break;
+                case FilterMode.Natural: show = state.IsNatural; break;
+                case FilterMode.Storm: show = state.IsStorming || state.IsForced; break;
+            }
+            if (!show) return false;
+
+            bool debrisMatch = true;
+            switch (currentDebrisFilter)
+            {
+                case DebrisFilterMode.All: debrisMatch = true; break;
+                case DebrisFilterMode.OnlyDebris: debrisMatch = v.vesselType == VesselType.Debris; break;
+                case DebrisFilterMode.ExcludeDebris: debrisMatch = v.vesselType != VesselType.Debris; break;
+            }
+            if (!debrisMatch) return false;
+
+            return true;
         }
 
         private float GetWindowWidthForFontSize(int size)
