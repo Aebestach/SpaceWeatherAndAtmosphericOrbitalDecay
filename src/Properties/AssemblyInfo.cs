@@ -14,8 +14,8 @@ using System.Runtime.InteropServices;
 
 [assembly: Guid("888b5157-da4f-4daa-890e-be523dc5c300")]
 
-[assembly: AssemblyVersion("1.0.7")]
-[assembly: AssemblyFileVersion("1.0.7")]
+[assembly: AssemblyVersion("1.0.8")]
+[assembly: AssemblyFileVersion("1.0.8")]
 
 // KSP Assembly attribute for mod detection
 [assembly: KSPAssembly("SpaceWeatherAndAtmosphericOrbitalDecay", 1, 0)]
