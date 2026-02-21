@@ -20,7 +20,7 @@
 In the stock game, vessels in a vacuum never experience drag. This mod changes that by simulating continuous atmospheric drag on vessels in the upper atmosphere and integrating with **Kerbalism** to simulate severe orbital decay caused by atmospheric expansion during solar storms.
 
 <div align="center">
-    <img src="https://imgur.com/fPhTpfv.jpg" alt="UI Screenshot" width="600" />
+    <img src="https://imgur.com/n6RjwUC.jpg" alt="UI Screenshot" width="600" />
 </div>
 
 ## ✨ Features
@@ -43,6 +43,9 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     *   Send a notification when the vehicle first re-enters the atmosphere and automatic vehicle destruction begins.
 
 ## 🛠️ Dependencies
+
+*   **Click Through Blocker**
+    *   Required for the mod's UI to function.
 
 *   **Kerbalism** (Optional)
     *   *Recommended*: To experience the full solar storm decay features.
