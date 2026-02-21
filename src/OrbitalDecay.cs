@@ -1413,13 +1413,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             float scrollWidth = Math.Max(contentWidth + 10f, BODY_POPUP_DEFAULT_WIDTH);
             scrollWidth = Math.Min(scrollWidth, BODY_POPUP_MAX_WIDTH);
 
-            float btnH = buttonStyle.CalcSize(new GUIContent(Localizer.Format("#SWAOD_Close"))).y + 8f;
-            const float TITLE_BAR_HEIGHT = 24f;
-            float listHeight = bodyFilterPopupRect.height - TITLE_BAR_HEIGHT - 6f - 8f - btnH - 6f;
-            listHeight = Math.Max(listHeight, BODY_POPUP_LIST_HEIGHT);
-
             GUILayout.Space(6);
-            bodyFilterPopupScrollPosition = GUILayout.BeginScrollView(bodyFilterPopupScrollPosition, false, true, GUILayout.Width(scrollWidth), GUILayout.Height(listHeight));
+            bodyFilterPopupScrollPosition = GUILayout.BeginScrollView(bodyFilterPopupScrollPosition, false, true, GUILayout.Width(scrollWidth), GUILayout.Height(BODY_POPUP_LIST_HEIGHT));
             for (int i = 0; i < bodyFilterNames.Length; i++)
             {
                 string name = bodyFilterNames[i];
