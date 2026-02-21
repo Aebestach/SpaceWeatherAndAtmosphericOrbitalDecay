@@ -21,7 +21,7 @@
 原版游戏中，飞船在真空中永远不会受到阻力影响。本模组改变了这一点：它模拟了高层大气对飞船的持续阻力，并与 **Kerbalism** 集成，模拟太阳风暴期间因大气膨胀导致的剧烈轨道衰减。
 
 <div align="center">
-    <img src="https://imgur.com/fPhTpfv.jpg" alt="UI Screenshot" width="600" />
+    <img src="https://imgur.com/n6RjwUC.jpg" alt="UI Screenshot" width="600" />
 </div>
 
 ## ✨ 功能特性 | Features
@@ -44,6 +44,9 @@
     *   当载具首次再入大气层和载具自动销毁开始时发送通知。
 
 ## 🛠️ 依赖项 | Dependencies
+
+*   **Click Through Blocker**
+    *   本模组 UI 所必需。
 
 *   **Kerbalism** (可选)
     *   *推荐安装*：以获得完整的太阳风暴衰减体验。

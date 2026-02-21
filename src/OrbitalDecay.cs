@@ -64,6 +64,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private GUIStyle _cachedYellow;
         private GUIStyle _cachedSubHeader;
         private GUIStyle _cachedVesselNameStyle;
+        private GUIStyle _cachedButton;
         private int _cachedFontSizeForStyles = -1;
         
         // UI Filter
@@ -81,7 +82,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private const float BODY_BUTTON_PADDING = 16f;
         private const float BODY_POPUP_MAX_WIDTH = 350f;
         private const float BODY_POPUP_DEFAULT_WIDTH = 220f;
-        private const float BODY_POPUP_DEFAULT_HEIGHT = 480f;
         private const float BODY_POPUP_LIST_HEIGHT = 340f;
 
         // Caching for Performance
@@ -898,6 +898,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 _cachedYellow = new GUIStyle(GUI.skin.label) { normal = { textColor = new Color(1f, 1f, 0.4f) }, fontSize = fontSize };
                 _cachedSubHeader = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = fontSize - 1, alignment = TextAnchor.MiddleLeft };
                 _cachedVesselNameStyle = new GUIStyle(GUI.skin.label) { richText = true, fontSize = fontSize, fontStyle = FontStyle.Bold };
+                _cachedButton = new GUIStyle(GUI.skin.button) { fontSize = fontSize, alignment = TextAnchor.MiddleCenter };
             }
 
             GUIStyle bold = _cachedBold;
@@ -907,14 +908,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             GUIStyle yellow = _cachedYellow;
             GUIStyle subHeader = _cachedSubHeader;
             GUIStyle vesselNameStyle = _cachedVesselNameStyle;
-            GUIStyle destroyButtonStyle = GUI.skin.button;
             string destroyLabel = Localizer.Format("#SWAOD_DestroyNow");
-            float destroyButtonWidth = destroyButtonStyle.CalcSize(new GUIContent(destroyLabel)).x + 12f;
+            float destroyButtonWidth = _cachedButton.CalcSize(new GUIContent(destroyLabel)).x + 12f;
 
             GUILayout.BeginHorizontal();
             GUILayout.Label(Localizer.Format("#SWAOD_Config"), bold);
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button(showSettings ? Localizer.Format("#SWAOD_HideConfig") : Localizer.Format("#SWAOD_ShowConfig"), GUI.skin.button, GUILayout.Width(100)))
+            float showConfigWidth = _cachedButton.CalcSize(new GUIContent(Localizer.Format("#SWAOD_ShowConfig"))).x + BODY_BUTTON_PADDING;
+            if (GUILayout.Button(showSettings ? Localizer.Format("#SWAOD_HideConfig") : Localizer.Format("#SWAOD_ShowConfig"), _cachedButton, GUILayout.Width(showConfigWidth)))
             {
                 showSettings = !showSettings;
                 if (!showSettings)
@@ -957,8 +958,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
                     // Key Binding UI
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(Localizer.Format("#SWAOD_Shortcut", toggleKey.ToString()), subHeader);
-                    if (GUILayout.Button(isRebinding ? Localizer.Format("#SWAOD_PressKey") : Localizer.Format("#SWAOD_ChangeKey"), GUI.skin.button, GUILayout.Width(100)))
+                    string shortcutLabel = Localizer.Format("#SWAOD_Shortcut", toggleKey.ToString());
+                    float shortcutLabelH = subHeader.CalcHeight(new GUIContent(shortcutLabel), 200f);
+                    float shortcutBtnH = _cachedButton.CalcSize(new GUIContent(Localizer.Format("#SWAOD_ChangeKey"))).y;
+                    float shortcutRowH = Math.Max(shortcutLabelH, shortcutBtnH);
+                    GUILayout.Label(shortcutLabel, subHeader, GUILayout.Height(shortcutRowH));
+                    if (GUILayout.Button(isRebinding ? Localizer.Format("#SWAOD_PressKey") : Localizer.Format("#SWAOD_ChangeKey"), _cachedButton, GUILayout.Width(100), GUILayout.Height(shortcutRowH)))
                     {
                         isRebinding = !isRebinding;
                     }
@@ -980,7 +985,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     }
 
                     GUILayout.Space(5);
-                    if (GUILayout.Button(Localizer.Format("#SWAOD_Reset"), GUI.skin.button))
+                    if (GUILayout.Button(Localizer.Format("#SWAOD_Reset"), _cachedButton))
                     {
                         uiScale = 1.0f;
                         fontSize = 13;
@@ -989,7 +994,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                         windowRect.height = 0;
                     }
                     
-                    if (GUILayout.Button(Localizer.Format("#SWAOD_SaveUI"), GUI.skin.button))
+                    if (GUILayout.Button(Localizer.Format("#SWAOD_SaveUI"), _cachedButton))
                     {
                         SaveUISettings();
                     }
@@ -1005,7 +1010,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
                     if (debugMode)
                     {
-                        if (GUILayout.Button(Localizer.Format("#SWAOD_DumpLogs"), GUI.skin.button))
+                        if (GUILayout.Button(Localizer.Format("#SWAOD_DumpLogs"), _cachedButton))
                         {
                              DumpAtmosphereLogs();
                         }
@@ -1061,21 +1066,22 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (bodyFilterNames.Length > 0)
             {
                 string allBodiesText = Localizer.Format("#SWAOD_Filter_AllBodies");
-                GUIStyle btnStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize, alignment = TextAnchor.MiddleCenter };
-                float baselineWidth = btnStyle.CalcSize(new GUIContent(allBodiesText)).x;
+                float baselineWidth = _cachedButton.CalcSize(new GUIContent(allBodiesText)).x;
                 float buttonWidth = baselineWidth + BODY_BUTTON_PADDING;
                 float labelH = normal.CalcHeight(new GUIContent(Localizer.Format("#SWAOD_Filter_Body")), 200f);
-                float btnH = btnStyle.CalcSize(new GUIContent(allBodiesText)).y;
+                float btnH = _cachedButton.CalcSize(new GUIContent(allBodiesText)).y;
                 float rowH = Math.Max(labelH, btnH);
                 GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal, GUILayout.Height(rowH));
                 string displayText = bodyFilterNames[currentBodyFilterIndex];
-                string truncatedDisplay = TruncateToWidth(displayText, btnStyle, baselineWidth);
-                if (GUILayout.Button(truncatedDisplay, btnStyle, GUILayout.Width(buttonWidth), GUILayout.Height(rowH)))
+                string truncatedDisplay = TruncateToWidth(displayText, _cachedButton, baselineWidth);
+                if (GUILayout.Button(truncatedDisplay, _cachedButton, GUILayout.Width(buttonWidth), GUILayout.Height(rowH)))
                 {
                     showBodyFilterPopup = true;
                     float logicalW = Screen.width / uiScale;
                     float logicalH = Screen.height / uiScale;
-                    bodyFilterPopupRect = new Rect((logicalW - BODY_POPUP_DEFAULT_WIDTH) * 0.5f, (logicalH - BODY_POPUP_DEFAULT_HEIGHT) * 0.5f, BODY_POPUP_DEFAULT_WIDTH, BODY_POPUP_DEFAULT_HEIGHT);
+                    float closeBtnHeight = _cachedButton.CalcSize(new GUIContent(Localizer.Format("#SWAOD_Close"))).y + 8f;
+                    float popupHeight = 24f + 6f + BODY_POPUP_LIST_HEIGHT + 8f + closeBtnHeight;
+                    bodyFilterPopupRect = new Rect((logicalW - BODY_POPUP_DEFAULT_WIDTH) * 0.5f, (logicalH - popupHeight) * 0.5f, BODY_POPUP_DEFAULT_WIDTH, popupHeight);
                     bodyFilterPopupScrollPosition = Vector2.zero;
                 }
             }
@@ -1089,18 +1095,18 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             // --- Filter Buttons ---
             GUILayout.BeginHorizontal();
             FilterMode previousFilter = currentFilter;
-            if (GUILayout.Toggle(currentFilter == FilterMode.All, Localizer.Format("#SWAOD_Filter_All"), GUI.skin.button)) currentFilter = FilterMode.All;
-            if (GUILayout.Toggle(currentFilter == FilterMode.Stable, Localizer.Format("#SWAOD_Filter_Stable"), GUI.skin.button)) currentFilter = FilterMode.Stable;
-            if (GUILayout.Toggle(currentFilter == FilterMode.Natural, Localizer.Format("#SWAOD_Filter_Natural"), GUI.skin.button)) currentFilter = FilterMode.Natural;
-            if (GUILayout.Toggle(currentFilter == FilterMode.Storm, Localizer.Format("#SWAOD_Filter_Storm"), GUI.skin.button)) currentFilter = FilterMode.Storm;
+            if (GUILayout.Toggle(currentFilter == FilterMode.All, Localizer.Format("#SWAOD_Filter_All"), _cachedButton)) currentFilter = FilterMode.All;
+            if (GUILayout.Toggle(currentFilter == FilterMode.Stable, Localizer.Format("#SWAOD_Filter_Stable"), _cachedButton)) currentFilter = FilterMode.Stable;
+            if (GUILayout.Toggle(currentFilter == FilterMode.Natural, Localizer.Format("#SWAOD_Filter_Natural"), _cachedButton)) currentFilter = FilterMode.Natural;
+            if (GUILayout.Toggle(currentFilter == FilterMode.Storm, Localizer.Format("#SWAOD_Filter_Storm"), _cachedButton)) currentFilter = FilterMode.Storm;
             if (previousFilter != currentFilter) uiCacheDirty = true;
             GUILayout.EndHorizontal();
             
             GUILayout.BeginHorizontal();
             DebrisFilterMode previousDebrisFilter = currentDebrisFilter;
-            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.All, Localizer.Format("#SWAOD_Filter_Debris_All"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.All;
-            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.OnlyDebris, Localizer.Format("#SWAOD_Filter_Debris_Only"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.OnlyDebris;
-            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.ExcludeDebris, Localizer.Format("#SWAOD_Filter_Debris_Exclude"), GUI.skin.button)) currentDebrisFilter = DebrisFilterMode.ExcludeDebris;
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.All, Localizer.Format("#SWAOD_Filter_Debris_All"), _cachedButton)) currentDebrisFilter = DebrisFilterMode.All;
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.OnlyDebris, Localizer.Format("#SWAOD_Filter_Debris_Only"), _cachedButton)) currentDebrisFilter = DebrisFilterMode.OnlyDebris;
+            if (GUILayout.Toggle(currentDebrisFilter == DebrisFilterMode.ExcludeDebris, Localizer.Format("#SWAOD_Filter_Debris_Exclude"), _cachedButton)) currentDebrisFilter = DebrisFilterMode.ExcludeDebris;
             if (previousDebrisFilter != currentDebrisFilter) uiCacheDirty = true;
             GUILayout.EndHorizontal();
 
@@ -1130,7 +1136,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     if (state.ShowDestroyButton)
                     {
                         GUILayout.Space(6);
-                        if (GUILayout.Button(destroyLabel, destroyButtonStyle, GUILayout.Width(destroyButtonWidth)))
+                        if (GUILayout.Button(destroyLabel, _cachedButton, GUILayout.Width(destroyButtonWidth)))
                         {
                             DestroyLoadedVessel(v);
                         }
@@ -1402,12 +1408,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private void DrawBodyFilterPopup(int windowID)
         {
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize };
             float maxItemWidth = BODY_POPUP_MAX_WIDTH - 24f;
             float contentWidth = 0f;
             for (int i = 0; i < bodyFilterNames.Length; i++)
             {
-                Vector2 sz = buttonStyle.CalcSize(new GUIContent(bodyFilterNames[i]));
+                Vector2 sz = _cachedButton.CalcSize(new GUIContent(bodyFilterNames[i]));
                 if (sz.x > contentWidth) contentWidth = Math.Min(sz.x, maxItemWidth);
             }
             float scrollWidth = Math.Max(contentWidth + 10f, BODY_POPUP_DEFAULT_WIDTH);
@@ -1418,8 +1423,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             for (int i = 0; i < bodyFilterNames.Length; i++)
             {
                 string name = bodyFilterNames[i];
-                string displayName = TruncateToWidth(name, buttonStyle, maxItemWidth);
-                if (GUILayout.Button(displayName, buttonStyle))
+                string displayName = TruncateToWidth(name, _cachedButton, maxItemWidth);
+                if (GUILayout.Button(displayName, _cachedButton))
                 {
                     currentBodyFilterIndex = i;
                     showBodyFilterPopup = false;
@@ -1428,11 +1433,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
             GUILayout.EndScrollView();
             GUILayout.Space(8);
-            if (GUILayout.Button(Localizer.Format("#SWAOD_Close"), buttonStyle))
+            if (GUILayout.Button(Localizer.Format("#SWAOD_Close"), _cachedButton))
             {
                 showBodyFilterPopup = false;
             }
-            GUILayout.Space(6);
             GUI.DragWindow();
         }
     }
