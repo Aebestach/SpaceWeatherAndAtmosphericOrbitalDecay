@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using KSP.Localization;
+using ClickThroughFix;
 
 #if KERBALISM
 using static KERBALISM.API;
@@ -74,6 +75,14 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private List<CelestialBody> bodyFilterBodies = new List<CelestialBody>();
         private string[] bodyFilterNames = Array.Empty<string>();
         private int bodyFilterSignature = 0;
+        private bool showBodyFilterPopup = false;
+        private Rect bodyFilterPopupRect;
+        private Vector2 bodyFilterPopupScrollPosition;
+        private const float BODY_BUTTON_PADDING = 16f;
+        private const float BODY_POPUP_MAX_WIDTH = 350f;
+        private const float BODY_POPUP_DEFAULT_WIDTH = 220f;
+        private const float BODY_POPUP_DEFAULT_HEIGHT = 480f;
+        private const float BODY_POPUP_LIST_HEIGHT = 340f;
 
         // Caching for Performance
         private Dictionary<Guid, double> cachedDecayTimesPe = new Dictionary<Guid, double>();
@@ -865,7 +874,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 Matrix4x4 oldMatrix = GUI.matrix;
                 GUIUtility.ScaleAroundPivot(new Vector2(uiScale, uiScale), Vector2.zero);
                 GUIStyle windowTitleStyle = new GUIStyle(GUI.skin.window) { fontSize = fontSize + 1 };
-                windowRect = GUILayout.Window(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"), windowTitleStyle);  
+                windowRect = ClickThruBlocker.GUILayoutWindow(884422, windowRect, DrawWindow, Localizer.Format("#SWAOD_Title"), windowTitleStyle);
+                if (showBodyFilterPopup && bodyFilterNames.Length > 0)
+                {
+                    GUIStyle popupTitleStyle = new GUIStyle(GUI.skin.window) { fontSize = fontSize + 1, fontStyle = FontStyle.Bold };
+                    bodyFilterPopupRect = ClickThruBlocker.GUILayoutWindow(884423, bodyFilterPopupRect, DrawBodyFilterPopup, Localizer.Format("#SWAOD_SelectBody"), popupTitleStyle);
+                }
                 GUI.matrix = oldMatrix;
             }
         }
@@ -1044,23 +1058,33 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal);
-            GUILayout.FlexibleSpace();
             if (bodyFilterNames.Length > 0)
             {
-                if (GUILayout.Button("<", GUI.skin.button, GUILayout.Width(24)))
+                string allBodiesText = Localizer.Format("#SWAOD_Filter_AllBodies");
+                GUIStyle btnStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize, alignment = TextAnchor.MiddleCenter };
+                float baselineWidth = btnStyle.CalcSize(new GUIContent(allBodiesText)).x;
+                float buttonWidth = baselineWidth + BODY_BUTTON_PADDING;
+                float labelH = normal.CalcHeight(new GUIContent(Localizer.Format("#SWAOD_Filter_Body")), 200f);
+                float btnH = btnStyle.CalcSize(new GUIContent(allBodiesText)).y;
+                float rowH = Math.Max(labelH, btnH);
+                GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal, GUILayout.Height(rowH));
+                string displayText = bodyFilterNames[currentBodyFilterIndex];
+                string truncatedDisplay = TruncateToWidth(displayText, btnStyle, baselineWidth);
+                if (GUILayout.Button(truncatedDisplay, btnStyle, GUILayout.Width(buttonWidth), GUILayout.Height(rowH)))
                 {
-                    currentBodyFilterIndex = (currentBodyFilterIndex - 1 + bodyFilterNames.Length) % bodyFilterNames.Length;
-                    uiCacheDirty = true;
-                }
-                GUILayout.Label(bodyFilterNames[currentBodyFilterIndex], normal);
-                if (GUILayout.Button(">", GUI.skin.button, GUILayout.Width(24)))
-                {
-                    currentBodyFilterIndex = (currentBodyFilterIndex + 1) % bodyFilterNames.Length;
-                    uiCacheDirty = true;
+                    showBodyFilterPopup = true;
+                    float logicalW = Screen.width / uiScale;
+                    float logicalH = Screen.height / uiScale;
+                    bodyFilterPopupRect = new Rect((logicalW - BODY_POPUP_DEFAULT_WIDTH) * 0.5f, (logicalH - BODY_POPUP_DEFAULT_HEIGHT) * 0.5f, BODY_POPUP_DEFAULT_WIDTH, BODY_POPUP_DEFAULT_HEIGHT);
+                    bodyFilterPopupScrollPosition = Vector2.zero;
                 }
             }
+            else
+            {
+                GUILayout.Label(Localizer.Format("#SWAOD_Filter_Body"), normal);
+            }
             GUILayout.EndHorizontal();
+            GUILayout.Space(6);
 
             // --- Filter Buttons ---
             GUILayout.BeginHorizontal();
@@ -1361,6 +1385,60 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             float right = windowRect.x + previousWidth;
             windowRect.width = newWidth;
             windowRect.x = right - newWidth;
+        }
+
+        private static string TruncateToWidth(string text, GUIStyle style, float maxWidth)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            Vector2 size = style.CalcSize(new GUIContent(text));
+            if (size.x <= maxWidth) return text;
+            for (int len = text.Length - 1; len >= 1; len--)
+            {
+                string truncated = text.Substring(0, len) + "..";
+                if (style.CalcSize(new GUIContent(truncated)).x <= maxWidth) return truncated;
+            }
+            return "..";
+        }
+
+        private void DrawBodyFilterPopup(int windowID)
+        {
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = fontSize };
+            float maxItemWidth = BODY_POPUP_MAX_WIDTH - 24f;
+            float contentWidth = 0f;
+            for (int i = 0; i < bodyFilterNames.Length; i++)
+            {
+                Vector2 sz = buttonStyle.CalcSize(new GUIContent(bodyFilterNames[i]));
+                if (sz.x > contentWidth) contentWidth = Math.Min(sz.x, maxItemWidth);
+            }
+            float scrollWidth = Math.Max(contentWidth + 10f, BODY_POPUP_DEFAULT_WIDTH);
+            scrollWidth = Math.Min(scrollWidth, BODY_POPUP_MAX_WIDTH);
+
+            float btnH = buttonStyle.CalcSize(new GUIContent(Localizer.Format("#SWAOD_Close"))).y + 8f;
+            const float TITLE_BAR_HEIGHT = 24f;
+            float listHeight = bodyFilterPopupRect.height - TITLE_BAR_HEIGHT - 6f - 8f - btnH - 6f;
+            listHeight = Math.Max(listHeight, BODY_POPUP_LIST_HEIGHT);
+
+            GUILayout.Space(6);
+            bodyFilterPopupScrollPosition = GUILayout.BeginScrollView(bodyFilterPopupScrollPosition, false, true, GUILayout.Width(scrollWidth), GUILayout.Height(listHeight));
+            for (int i = 0; i < bodyFilterNames.Length; i++)
+            {
+                string name = bodyFilterNames[i];
+                string displayName = TruncateToWidth(name, buttonStyle, maxItemWidth);
+                if (GUILayout.Button(displayName, buttonStyle))
+                {
+                    currentBodyFilterIndex = i;
+                    showBodyFilterPopup = false;
+                    uiCacheDirty = true;
+                }
+            }
+            GUILayout.EndScrollView();
+            GUILayout.Space(8);
+            if (GUILayout.Button(Localizer.Format("#SWAOD_Close"), buttonStyle))
+            {
+                showBodyFilterPopup = false;
+            }
+            GUILayout.Space(6);
+            GUI.DragWindow();
         }
     }
 }
