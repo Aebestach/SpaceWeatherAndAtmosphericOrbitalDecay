@@ -442,19 +442,17 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             PopulateVisibleVessels();
         }
 
+        /// <summary>
+        /// The celestial body list does not change between game sessions (adding celestial bodies requires restarting the game), 
+        /// so it is only initialized once when needed for the first time.
+        /// </summary>
         private void UpdateBodyFilterCache()
         {
-            int signature = 17;
+            if (bodyFilterCacheInitialized) return;
+
             List<CelestialBody> bodies = FlightGlobals.Bodies;
-            for (int i = 0; i < bodies.Count; i++)
-            {
-                CelestialBody body = bodies[i];
-                signature = signature * 31 + body.name.GetHashCode();
-            }
+            if (bodies == null || bodies.Count == 0) return;
 
-            if (signature == bodyFilterSignature && bodyFilterNames.Length > 0) return;
-
-            bodyFilterSignature = signature;
             bodyFilterBodies.Clear();
             for (int i = 0; i < bodies.Count; i++)
             {
@@ -469,6 +467,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
 
             if (currentBodyFilterIndex >= bodyFilterNames.Length) currentBodyFilterIndex = 0;
+            bodyFilterCacheInitialized = true;
         }
 
         private void UpdateVesselCache()
