@@ -14,7 +14,7 @@
 
 ---
 
-## 📖 简介 | Introduction
+## 简介 | Introduction
 
 **Space Weather And Atmospheric Orbital Decay (SWAOD)** 是一款为 **Kerbal Space Program (KSP)** 设计的模组，旨在引入真实的轨道衰减机制。
 
@@ -24,26 +24,26 @@
     <img src="https://imgur.com/n6RjwUC.jpg" alt="UI Screenshot" width="600" />
 </div>
 
-## ✨ 功能特性 | Features
+## 功能特性 | Features
 
-*   **🪐 自然轨道衰减**
+*   **自然轨道衰减**
     *   模拟高层大气/外逸层中未加载和加载飞船的大气阻力。
     *   有效清理轨道碎片，防止低轨道垃圾永久滞留。
     *   **真实物理模拟**：根据飞船的估算面质比（Area-to-Mass Ratio）和实时大气密度计算阻力。
 
-*   **☀️ 太阳风暴效应** (需要 Kerbalism)
+*   **太阳风暴效应** (需要 Kerbalism)
     *   在太阳风暴期间大幅增加轨道衰减率，模拟因太阳活动导致的大气膨胀效应。
     *   **可配置性**：可在 `Settings.cfg` 中设置是否让无大气星球（如 Mun）也受太阳风暴影响（默认关闭）。
 
-*   **📊 实时监控 UI**
+*   **实时监控 UI**
     *   提供控制面板监控在轨/次轨载具的状态。
     *   实时查看远/近地点轨道高度、衰减状态及**远/近地点的预计再入时间**。
     *   支持按状态筛选飞船列表。
 
-*   **⚠️ 智能预警系统**
+*   **智能预警系统**
     *   当载具首次再入大气层和载具自动销毁开始时发送通知。
 
-## 🛠️ 依赖项 | Dependencies
+## 依赖项 | Dependencies
 
 *   **Click Through Blocker**
     *   本模组 UI 所必需。
@@ -52,21 +52,21 @@
     *   *推荐安装*：以获得完整的太阳风暴衰减体验。
     *   *如果不安装*：本模组仍可作为独立的“自然大气衰减”模组运行。
 
-## 🧩 兼容性 | Compatibility
+## 兼容性 | Compatibility
 
 *   ✅ **星球包 (Planet Packs)**: 理论上兼容所有星球包。
 *   ❌ **Principia**: 不支持。
 
-## 📥 安装说明 | Installation
+## 安装说明 | Installation
 
 1.  下载 [最新版本 (Latest Release)](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases)。
 2.  将 `GameData` 文件夹解压到您的 KSP 安装目录中：
     *   `Kerbal Space Program/GameData/SpaceWeatherAndAtmosphericOrbitalDecay/`
-3.  **⚠️ 重要提示**：
+3.  **重要提示**：
     *   **使用 Kerbalism**：默认安装即可。
     *   **不使用 Kerbalism**：请使用 `Extra/Non-Kerbalism/` 目录下的 `.dll` 文件替换 `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` 中的文件。
 
-## 🎮 使用指南 | Usage
+## 使用指南 | Usage
 
 ### 快捷键
 *   **打开/关闭 UI**：`Alt + Q`
@@ -82,7 +82,7 @@
 ### 注意事项
 *   UI中显示的再入时间与实际再入时间可能存在差异，这是由于计算误差和总步长所致，但估计值比实际再入时间要少（大约少10分钟）。
 
-## ⚙️ 配置 | Configuration
+## 配置 | Configuration
 
 除了游戏内 UI，您还可以通过编辑以下文件进行高级配置：
 `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg`
@@ -99,6 +99,6 @@
 | `warningThreshold` | 低轨道警告阈值 (Periapsis < 大气高度 * (1.0 + 阈值)) | `0.2` |
 | `reentryDestroySeconds` | 未加载载具进入大气层后销毁的倒计时秒数 | `60.0` |
 
-## 🤝 致谢 | Credits
+## 致谢 | Credits
 
 *   感谢 **Gemini 3 Pro** 对本 Mod 开发的协助。
