@@ -33,6 +33,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private const double AU = 13599840256; 
 
         // State Variables
+        private HashSet<Guid> vesselDecayDisabled = new HashSet<Guid>();
         private HashSet<Guid> lowOrbitWarned = new HashSet<Guid>();
         private HashSet<Guid> lowPeriapsisWarned = new HashSet<Guid>();
         private Dictionary<Guid, double> pendingDestroyTimers = new Dictionary<Guid, double>();
@@ -238,13 +239,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 #endif
                 stormActive = stormActive || debugForceStorm;
 
-                if (stormActive)
+                if (stormActive && !vesselDecayDisabled.Contains(v.id))
                 {
                     ApplyStormDecay(v, dt, currentUT);
                 }
 
                 // Natural Atmospheric Decay Logic
-                if (naturalDecayEnabled)
+                if (naturalDecayEnabled && !vesselDecayDisabled.Contains(v.id))
                 {
                     ApplyNaturalDecay(v, dt, currentUT);
                 }

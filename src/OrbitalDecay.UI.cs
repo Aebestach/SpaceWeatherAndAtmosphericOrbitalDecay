@@ -402,13 +402,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     
                     string statusText = state.StatusText;
                     GUIStyle statusStyle = green;
-                    
-                    if (stormInRange && isNatural) { statusStyle = red; }
-                    else if (stormInRange) { statusStyle = red; }
-                    else if (isNatural) { statusStyle = yellow; }
-                    
+                    if (!vesselDecayDisabled.Contains(v.id))
+                    {
+                        if (stormInRange && isNatural) { statusStyle = red; }
+                        else if (stormInRange) { statusStyle = red; }
+                        else if (isNatural) { statusStyle = yellow; }
+                    }
                     GUILayout.Label(statusText, statusStyle);
-                    
+                    if (debugMode)
+                    {
+                        GUILayout.FlexibleSpace();
+                        bool disabled = vesselDecayDisabled.Contains(v.id);
+                        bool newDisabled = GUILayout.Toggle(disabled, Localizer.Format("#SWAOD_DisableDecayToggle"), _cachedButton);
+                        if (newDisabled != disabled)
+                        {
+                            if (newDisabled) vesselDecayDisabled.Add(v.id);
+                            else vesselDecayDisabled.Remove(v.id);
+                        }
+                    }
                     GUILayout.EndHorizontal();
                 }
                 GUILayout.EndVertical();
@@ -600,10 +611,17 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             state.IncText = Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2"));
             state.EccText = Localizer.Format("#SWAOD_Ecc", v.orbit.eccentricity.ToString("F3"));
 
-            string statusText = Localizer.Format("#SWAOD_Status_Stable");
-            if (state.StormInRange && state.IsNatural) statusText = Localizer.Format("#SWAOD_Status_StormPlus");
-            else if (state.StormInRange) statusText = Localizer.Format("#SWAOD_Status_StormDecay");
-            else if (state.IsNatural) statusText = Localizer.Format("#SWAOD_Status_NaturalDecay");
+            string statusText;
+            if (vesselDecayDisabled.Contains(v.id))
+                statusText = Localizer.Format("#SWAOD_Status_Stable");
+            else if (state.StormInRange && state.IsNatural)
+                statusText = Localizer.Format("#SWAOD_Status_StormPlus");
+            else if (state.StormInRange)
+                statusText = Localizer.Format("#SWAOD_Status_StormDecay");
+            else if (state.IsNatural)
+                statusText = Localizer.Format("#SWAOD_Status_NaturalDecay");
+            else
+                statusText = Localizer.Format("#SWAOD_Status_Stable");
             state.StatusText = statusText;
             state.StormRateText = state.StormInRange ? Localizer.Format("#SWAOD_StormRate_Debug", state.CurrentStormRate.ToString("E2")) : string.Empty;
             state.ShowDestroyButton = v.loaded && v.vesselType != VesselType.Debris && v.mainBody.atmosphere && v.orbit.PeA < v.mainBody.atmosphereDepth;

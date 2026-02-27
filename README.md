@@ -13,7 +13,7 @@
 
 ---
 
-## 📖 Introduction
+## Introduction
 
 **Space Weather And Atmospheric Orbital Decay (SWAOD)** is a mod for **Kerbal Space Program (KSP)** that introduces realistic orbital decay mechanics.
 
@@ -23,26 +23,26 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     <img src="https://imgur.com/n6RjwUC.jpg" alt="UI Screenshot" width="600" />
 </div>
 
-## ✨ Features
+## Features
 
-*   **🪐 Natural Orbital Decay**
+*   **Natural Orbital Decay**
     *   Simulates atmospheric drag for unloaded and loaded vessels in the upper atmosphere/exosphere.
     *   Effectively cleans up orbital debris, preventing low-orbit junk accumulation.
     *   **Realistic Physics**: Calculates drag based on the vessel's estimated Area-to-Mass Ratio and real-time atmospheric density.
 
-*   **☀️ Solar Storm Effects** (Requires Kerbalism)
+*   **Solar Storm Effects** (Requires Kerbalism)
     *   Drastically increases orbital decay rates during solar storms, simulating atmospheric expansion caused by solar activity.
     *   **Configurable**: Toggle whether bodies without atmospheres (e.g., Mun) are affected by storm decay in `Settings.cfg` (Disabled by default).
 
-*   **📊 Real-time Monitoring UI**
+*   **Real-time Monitoring UI**
     *   Provide a control panel to monitor the status of on-orbit/sub-orbit vehicles.
     *   Real-time view of apogee/perigee orbit height, attenuation status and **estimated re-entry time of apogee/perigee**
     *   Filter vessel lists by status.
 
-*   **⚠️ Smart Warning System**
+*   **Smart Warning System**
     *   Send a notification when the vehicle first re-enters the atmosphere and automatic vehicle destruction begins.
 
-## 🛠️ Dependencies
+## Dependencies
 
 *   **Click Through Blocker**
     *   Required for the mod's UI to function.
@@ -51,21 +51,21 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
     *   *Recommended*: To experience the full solar storm decay features.
     *   *Without Kerbalism*: The mod functions as a standalone "Natural Atmospheric Decay" mod.
 
-## 🧩 Compatibility
+## Compatibility
 
 *   ✅ **Planet Packs**: Theoretically compatible with all planet packs.
 *   ❌ **Principia**: Not supported.
 
-## 📥 Installation
+## Installation
 
 1.  Download the [Latest Release](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases).
 2.  Extract the `GameData` folder into your KSP installation directory:
     *   `Kerbal Space Program/GameData/SpaceWeatherAndAtmosphericOrbitalDecay/`
-3.  **⚠️ Important**:
+3.  **Important**:
     *   **Using Kerbalism**: Default installation works out of the box.
     *   **Not using Kerbalism**: Replace the `.dll` file in `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` with the one found in `Extra/Non-Kerbalism/`.
 
-## 🎮 Usage Guide
+## Usage Guide
 
 ### Shortcuts
 *   **Toggle UI**: `Alt + Q`
@@ -81,7 +81,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 ### Important Notes
 *   The re-entry time displayed in the UI may differ from the actual re-entry time due to computational errors and total stride length. But the estimated value will be less than the actual re-entry time (About 10 minutes less).
 
-## ⚙️ Configuration
+## Configuration
 
 Besides the in-game UI, advanced configuration can be done by editing:
 `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg`
@@ -98,6 +98,6 @@ Besides the in-game UI, advanced configuration can be done by editing:
 | `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
 | `reentryDestroySeconds` | Countdown seconds until an unloaded vehicle is destroyed after entering the atmosphere | `60.0` |
 
-## 🤝 Credits
+## Credits
 
 *   Special thanks to **Gemini 3 Pro** for assisting in the development of this mod.
