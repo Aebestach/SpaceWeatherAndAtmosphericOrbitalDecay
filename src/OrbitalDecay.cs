@@ -75,7 +75,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private int currentBodyFilterIndex = 0;
         private List<CelestialBody> bodyFilterBodies = new List<CelestialBody>();
         private string[] bodyFilterNames = Array.Empty<string>();
-        private int bodyFilterSignature = 0;
+        private bool bodyFilterCacheInitialized = false;
         private bool showBodyFilterPopup = false;
         private Rect bodyFilterPopupRect;
         private Vector2 bodyFilterPopupScrollPosition;
