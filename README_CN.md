@@ -51,6 +51,7 @@
 *   **Kerbalism** (可选)
     *   *推荐安装*：以获得完整的太阳风暴衰减体验。
     *   *如果不安装*：本模组仍可作为独立的“自然大气衰减”模组运行。
+    *   模组会在运行时自动检测 Kerbalism，无需手动选择或替换不同版本的 DLL。
 
 ## 兼容性 | Compatibility
 
@@ -62,9 +63,8 @@
 1.  下载 [最新版本 (Latest Release)](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases)。
 2.  将 `GameData` 文件夹解压到您的 KSP 安装目录中：
     *   `Kerbal Space Program/GameData/SpaceWeatherAndAtmosphericOrbitalDecay/`
-3.  **重要提示**：
-    *   **使用 Kerbalism**：默认安装即可。
-    *   **不使用 Kerbalism**：请使用 `Extra/Non-Kerbalism/` 目录下的 `.dll` 文件替换 `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` 中的文件。
+3.  确保已安装 **Click Through Blocker**（必需）。
+4.  **Kerbalism** 为可选依赖：模组会在运行时自动检测。安装了 Kerbalism 时启用太阳风暴衰减；未安装时仍可使用自然大气衰减，无需任何额外操作。
 
 ## 使用指南 | Usage
 

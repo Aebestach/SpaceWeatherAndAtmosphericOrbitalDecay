@@ -2,7 +2,7 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{888B5157-DA4F-4DAA-890E-BE523DC5C300}</ProjectGuid>
     <OutputType>Library</OutputType>
@@ -13,23 +13,16 @@
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release_Kerbalism|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>..\GameData\SpaceWeatherAndAtmosphericOrbitalDecay\Plugin\</OutputPath>
-    <DefineConstants>TRACE;KERBALISM</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU' ">
-    <DebugType>none</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>..\Extra\Non-Kerbalism\</OutputPath>
-    <DefineConstants>TRACE;</DefineConstants>
+    <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="KerbalismIntegration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="OrbitalDecay.cs" />
     <Compile Include="OrbitalDecay.DecayLogic.cs" />
@@ -37,35 +30,31 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\0. Environment\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="ClickThroughBlocker">
-      <HintPath>..\..\0. Environment\ClickThroughBlocker.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Kerbalism112">
-      <HintPath>plugins\Kerbalism112.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\ClickThroughBlocker.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

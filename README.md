@@ -50,6 +50,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 *   **Kerbalism** (Optional)
     *   *Recommended*: To experience the full solar storm decay features.
     *   *Without Kerbalism*: The mod functions as a standalone "Natural Atmospheric Decay" mod.
+    *   Kerbalism is detected automatically at runtime; no need to manually choose or swap DLL versions.
 
 ## Compatibility
 
@@ -61,9 +62,8 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 1.  Download the [Latest Release](https://github.com/Aebestach/SpaceWeatherAndAtmosphericOrbitalDecay/releases).
 2.  Extract the `GameData` folder into your KSP installation directory:
     *   `Kerbal Space Program/GameData/SpaceWeatherAndAtmosphericOrbitalDecay/`
-3.  **Important**:
-    *   **Using Kerbalism**: Default installation works out of the box.
-    *   **Not using Kerbalism**: Replace the `.dll` file in `GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Plugin/` with the one found in `Extra/Non-Kerbalism/`.
+3.  Ensure **Click Through Blocker** is installed (required).
+4.  **Kerbalism** is optional: the mod detects it automatically at runtime. With Kerbalism installed, solar storm decay is enabled; without it, natural atmospheric decay still works with no extra steps.
 
 ## Usage Guide
 

@@ -4,10 +4,6 @@ using System.IO;
 using UnityEngine;
 using KSP.Localization;
 
-#if KERBALISM
-using static KERBALISM.API;
-#endif
-
 namespace SpaceWeatherAndAtmosphericOrbitalDecay
 {
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
@@ -102,6 +98,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         void Start()
         {
             lastUT = Planetarium.GetUniversalTime();
+            KerbalismIntegration.Initialize();
             LoadSettings();
             LoadUISettings();
         }
@@ -233,11 +230,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (!IsValidVessel(v)) continue;
 
                 // Solar Storm Decay Logic
-                bool stormActive = false;
-#if KERBALISM
-                stormActive = StormInProgress(v);
-#endif
-                stormActive = stormActive || debugForceStorm;
+                bool stormActive = KerbalismIntegration.IsStormInProgress(v) || debugForceStorm;
 
                 if (stormActive && !vesselDecayDisabled.Contains(v.id))
                 {
