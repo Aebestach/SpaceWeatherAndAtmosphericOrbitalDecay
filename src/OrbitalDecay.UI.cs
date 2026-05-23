@@ -4,10 +4,6 @@ using UnityEngine;
 using KSP.Localization;
 using ClickThroughFix;
 
-#if KERBALISM
-using static KERBALISM.API;
-#endif
-
 namespace SpaceWeatherAndAtmosphericOrbitalDecay
 {
     /// <summary>
@@ -250,11 +246,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     
                     // Storm Settings
                     GUILayout.BeginHorizontal();
-#if KERBALISM
-                    string stormStatus = stormDecayRate > 0 ? Localizer.Format("#SWAOD_Enabled") : Localizer.Format("#SWAOD_Disabled");
-#else
-                    string stormStatus = Localizer.Format("#SWAOD_NotAvailable");
-#endif
+                    string stormStatus = KerbalismIntegration.IsAvailable
+                        ? (stormDecayRate > 0 ? Localizer.Format("#SWAOD_Enabled") : Localizer.Format("#SWAOD_Disabled"))
+                        : Localizer.Format("#SWAOD_NotAvailable");
                     GUILayout.Label(Localizer.Format("#SWAOD_StormDecay") + stormStatus, normal);
                     GUILayout.FlexibleSpace();
                     GUILayout.Label(Localizer.Format("#SWAOD_BaseRate", stormDecayRate.ToString("E2")), yellow);
@@ -531,10 +525,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (bodyIndex >= bodyFilterBodies.Count || v.mainBody != bodyFilterBodies[bodyIndex]) return false;
             }
 
-            bool stormActive = false;
-#if KERBALISM
-            stormActive = StormInProgress(v);
-#endif
+            bool stormActive = KerbalismIntegration.IsStormInProgress(v);
             state.IsStorming = stormActive;
             state.IsNatural = false;
             state.StormInRange = false;

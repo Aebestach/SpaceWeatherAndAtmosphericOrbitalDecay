@@ -3,10 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using KSP.Localization;
 
-#if KERBALISM
-using static KERBALISM.API;
-#endif
-
 namespace SpaceWeatherAndAtmosphericOrbitalDecay
 {
     /// <summary>
