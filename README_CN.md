@@ -99,6 +99,17 @@
 | `warningThreshold` | 低轨道警告阈值 (Periapsis < 大气高度 * (1.0 + 阈值)) | `0.2` |
 | `reentryDestroySeconds` | 未加载载具进入大气层后销毁的倒计时秒数 | `60.0` |
 
+## 公共 API | Public API
+
+其他模组可通过 `SpaceWeatherAndAtmosphericOrbitalDecay.OrbitalDecayApi` 读取 SWAOD 的衰减节奏估算：
+
+| 方法 | 用途 |
+| :--- | :--- |
+| `TryEstimateStationKeepingCadence(Vessel, 目标Ap, 目标Pe, 容差%, out estimate)` | 飞行中已发射载具的估算；Kerbalism 报告太阳风暴时会包含风暴衰减。 |
+| `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, 目标Ap, 目标Pe, 容差%, 质量, out estimate)` | VAB/装配规划，无 `Vessel` 实例；仅按目标轨道自然衰减估算（不含风暴）。 |
+
+两者均返回只读的 `StationKeepingEstimate`，包含到达容差带所需时间、衰减速率、是否风暴估算、容差掉高，以及恢复该掉高的预计 delta-v；不会修改载具轨道。[Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) 的寿命估算与 VAB 规划功能使用这些接口。
+
 ## 致谢 | Credits
 
 *   感谢 **Gemini 3 Pro** 对本 Mod 开发的协助。

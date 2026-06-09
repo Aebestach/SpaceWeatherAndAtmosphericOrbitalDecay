@@ -98,6 +98,17 @@ Besides the in-game UI, advanced configuration can be done by editing:
 | `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
 | `reentryDestroySeconds` | Countdown seconds until an unloaded vehicle is destroyed after entering the atmosphere | `60.0` |
 
+## Public API
+
+Other mods can query SWAOD's decay cadence through `SpaceWeatherAndAtmosphericOrbitalDecay.OrbitalDecayApi`:
+
+| Method | Use case |
+| :--- | :--- |
+| `TryEstimateStationKeepingCadence(Vessel, targetAp, targetPe, tolerance%, out estimate)` | In-flight estimate using the launched vessel's current state; includes solar-storm decay when Kerbalism reports an active storm. |
+| `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, targetAp, targetPe, tolerance%, mass, out estimate)` | VAB/editor planning with no `Vessel` instance; uses natural decay at the target orbit only (no storm estimate). |
+
+Both return a read-only `StationKeepingEstimate` with seconds to the tolerance band, decay rate, storm flag, tolerance drop, and estimated delta-v to restore that drop. They do not modify vessel orbits. [Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) uses these APIs for its lifetime and VAB planning estimates.
+
 ## Credits
 
 *   Special thanks to **Gemini 3 Pro** for assisting in the development of this mod.
