@@ -89,7 +89,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             double natural_da_dt = -(2.0 * v.orbit.semiMajorAxis * v.orbit.semiMajorAxis * vel * drag) / (v.mainBody.gravParameter * v.GetTotalMass() * 1000.0);
             natural_da_dt *= naturalDecayMultiplier;
             
-            double predictedTime = EstimateDecayTime(v, v.altitude, 0);
+            double predictedTime = EstimateDecayTime(v, false, 0);
             Debug.Log($"[OrbitalDecay] FULL PREDICTION from {v.altitude/1000:F1}km: {FormatTime(predictedTime)}");
         }
 
@@ -535,12 +535,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             double periapsisAlt = v.orbit.PeA;
             if (naturalDecayEnabled && v.mainBody.atmosphere && periapsisAlt < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
             {
-                double dens = GetExosphericDensity(v.mainBody, periapsisAlt);
-                if (periapsisAlt < v.mainBody.atmosphereDepth)
-                {
-                    dens *= 10.0;
-                }
-                if (dens > 1e-22)
+                double mass = v.GetTotalMass();
+                if (mass <= 0.001) mass = 0.1;
+                double naturalDaDt = AtmosphericDecayModel.EstimateNaturalDaDt(
+                    v.mainBody, v.orbit, mass, GetDecaySettings());
+                if (Math.Abs(naturalDaDt) > 1e-12)
                 {
                     state.IsNatural = true;
                 }
@@ -596,8 +595,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             state.BodyName = v.mainBody.name;
             state.PeAltText = Localizer.Format("#SWAOD_PeAlt", FormatAltitude(v.orbit.PeA));
             state.ApAltText = Localizer.Format("#SWAOD_ApAlt", FormatAltitude(v.orbit.ApA));
-            state.PeTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.PeA, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesPe, lastDecayCalcTimePe));
-            state.ApTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, v.orbit.ApA, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesAp, lastDecayCalcTimeAp));
+            state.PeTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, false, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesPe, lastDecayCalcTimePe));
+            state.ApTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, true, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesAp, lastDecayCalcTimeAp));
             state.IncText = Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2"));
             state.EccText = Localizer.Format("#SWAOD_Ecc", v.orbit.eccentricity.ToString("F3"));
 

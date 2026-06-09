@@ -79,7 +79,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 *   **Config Panel**: Click `Show Config` to adjust UI scale, font size, view debug info, etc. in-game.
 
 ### Important Notes
-*   The re-entry time displayed in the UI may differ from the actual re-entry time due to computational errors and total stride length. But the estimated value will be less than the actual re-entry time (About 10 minutes less).
+*   The re-entry time displayed in the UI is an estimate. It uses the same orbit-averaged decay model as the runtime decay logic, but long time-warps, eccentric orbits, and changing vessel mass can still introduce differences.
 
 ## Configuration
 
@@ -94,9 +94,26 @@ Besides the in-game UI, advanced configuration can be done by editing:
 | `naturalDecayEnabled` | Enable natural atmospheric decay | `true` |
 | `naturalDecayMultiplier` | Multiplier for natural decay force | `1.0` |
 | `naturalDecayAltitudeCutoff` | Max altitude multiplier for natural decay (Relative to Atmo Height) | `10.0` |
+| `exosphereFitStart` | Start of the upper-atmosphere density fit window (fraction of atmosphere height) | `0.80` |
+| `exosphereFitEnd` | End of the upper-atmosphere density fit window (fraction of atmosphere height) | `0.90` |
+| `exosphereScaleHeightMin` | Minimum extrapolated scale height (fraction of atmosphere height) | `0.03` |
+| `exosphereScaleHeightMax` | Maximum extrapolated scale height (fraction of atmosphere height) | `0.30` |
+| `exosphereFitSamples` | Samples used to fit the upper-atmosphere `ln(density)` slope | `8` |
+| `orbitAverageSamples` | Samples used for orbit-averaged drag estimates | `24` |
 | `warningEnabled` | Enable low orbit warnings | `true` |
 | `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
 | `reentryDestroySeconds` | Countdown seconds until an unloaded vehicle is destroyed after entering the atmosphere | `60.0` |
+
+## Public API
+
+Other mods can query SWAOD's decay cadence through `SpaceWeatherAndAtmosphericOrbitalDecay.OrbitalDecayApi`:
+
+| Method | Use case |
+| :--- | :--- |
+| `TryEstimateStationKeepingCadence(Vessel, targetAp, targetPe, tolerance%, out estimate)` | In-flight estimate using the launched vessel's current state; includes solar-storm decay when Kerbalism reports an active storm. |
+| `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, targetAp, targetPe, tolerance%, mass, out estimate)` | VAB/editor planning with no `Vessel` instance; uses natural decay at the target orbit only (no storm estimate). |
+
+Both return a read-only `StationKeepingEstimate` with seconds to the tolerance band, decay rate, storm flag, tolerance drop, and estimated delta-v to restore that drop. They do not modify vessel orbits. [Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) uses these APIs for its lifetime and VAB planning estimates.
 
 ## Credits
 

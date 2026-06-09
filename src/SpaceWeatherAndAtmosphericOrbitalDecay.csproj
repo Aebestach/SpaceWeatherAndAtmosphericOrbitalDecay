@@ -22,39 +22,41 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AtmosphericDecayModel.cs" />
     <Compile Include="KerbalismIntegration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="OrbitalDecayApi.cs" />
     <Compile Include="OrbitalDecay.cs" />
     <Compile Include="OrbitalDecay.DecayLogic.cs" />
     <Compile Include="OrbitalDecay.UI.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="ClickThroughBlocker">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\ClickThroughBlocker.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\others\ClickThroughBlocker.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

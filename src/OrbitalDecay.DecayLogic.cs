@@ -121,76 +121,47 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (v.loaded && v.situation != Vessel.Situations.ORBITING) return;
 
             double maxAlt = atmDepth * naturalDecayAltitudeCutoff;
-            if (altitude > maxAlt) return;
+            if (o.PeA > maxAlt) return;
 
-            double density = GetExosphericDensity(v.mainBody, altitude);
-
-            if (density <= 1e-22) density = 1e-22; 
-
-            // Physics-based Drag Decay
-            // Fd = 0.5 * rho * v^2 * Cd * A
-
-            // Velocity calculation (Use Vis-viva equation for accurate orbital speed)
-            // v = sqrt(mu * (2/r - 1/a))
-            double mu = v.mainBody.gravParameter;
-            double a = v.orbit.semiMajorAxis;
-
-            double r = v.altitude + v.mainBody.Radius;
-
-            // Vis-viva equation
-            double vSq = mu * (2.0 / r - 1.0 / a);
-            double vel = Math.Sqrt(Math.Max(0, vSq));
-
-            // Estimate Area/Mass ratio (Ballistic Coefficient)
             double mass = v.GetTotalMass();
             if (mass <= 0.001) mass = 0.1;
 
-            double m_kg = mass * 1000.0;
-            double area = Math.Pow(mass, 0.666) * 4.0; // Rough estimation
-            double Cd = 2.0;
-
-            // Fd (Newtons) = 0.5 * rho * v^2 * Cd * A
-            double dragForceNewtons = 0.5 * density * (vel * vel) * Cd * area;
-
-            // Energy Decay Rate: dE/dt = -Fd * v
-            // da/dt = - (2 * a^2 * v * Fd) / (mu * m)
-
-            // Instantaneous change in SMA per second (Meters per Second)
-            double da_dt = -(2.0 * a * a * vel * dragForceNewtons) / (mu * m_kg);
-
-            // Apply Multiplier
-            da_dt *= naturalDecayMultiplier;
-
-            if (v.loaded && altitude < atmDepth && altitude > atmDepth - 2000.0)
-            {
-                da_dt *= 10.0;
-            }
-
-
-            double deltaSMA = 0;
+            AtmosphericDecayModel.DecaySettings decaySettings = GetDecaySettings();
+            double originalSma = o.semiMajorAxis;
+            double currentSma = originalSma;
+            double currentEcc = o.eccentricity;
             double remainingDt = dt;
-            
-            
-            while (remainingDt > 0)
+            int integrationSteps = 0;
+
+            while (remainingDt > 0.0 && integrationSteps < 256)
             {
                 double stepDt = remainingDt;
-                
-                if (stepDt > 3600.0) stepDt = 3600.0;
-                
-                double current_da_dt = da_dt; 
 
-                double estimatedDrop = Math.Abs(da_dt * stepDt);
-                
-                if (estimatedDrop > 100.0)
+                if (stepDt > 3600.0) stepDt = 3600.0;
+
+                double currentDaDt = AtmosphericDecayModel.EstimateNaturalDaDt(
+                    v.mainBody, currentSma, currentEcc, mass, decaySettings);
+                if (Math.Abs(currentDaDt) <= 1e-12)
+                    break;
+
+                double stepDeltaSma = currentDaDt * stepDt;
+                double periapsisBuffer = currentSma * (1.0 - currentEcc) - v.mainBody.Radius - atmDepth;
+                if (periapsisBuffer > 0.0)
                 {
-                    double scaleHeight = 7000.0;
-                    double boostFactor = 1.0 + (estimatedDrop / (2.0 * scaleHeight));
-                    
-                    current_da_dt *= boostFactor;
+                    double maxSafeDrop = Math.Max(periapsisBuffer * 0.5, 10000.0);
+                    if (-stepDeltaSma > maxSafeDrop)
+                        stepDeltaSma = -maxSafeDrop;
                 }
-                
-                deltaSMA += current_da_dt * stepDt;
+
+                AtmosphericDecayModel.OrbitElements next =
+                    AtmosphericDecayModel.ApplyDecayToElements(v.mainBody, currentSma, currentEcc, stepDeltaSma);
+                if (Math.Abs(next.SemiMajorAxis - currentSma) < 1e-8)
+                    break;
+
+                currentSma = next.SemiMajorAxis;
+                currentEcc = next.Eccentricity;
                 remainingDt -= stepDt;
+                integrationSteps++;
             }
 
             double criticalAlt = v.mainBody.atmosphereDepth * (1.0 + warningThreshold); // e.g. 1.2 * 70km = 84km
@@ -203,29 +174,18 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 lowPeriapsisWarned.Add(v.id);
             }
 
+            double deltaSMA = currentSma - originalSma;
+            if (Math.Abs(deltaSMA) < 1e-10) return;
 
-            double currentBuffer = altitude - atmDepth;
-            
-            if (currentBuffer > 0)
+            if (v.loaded && !v.packed)
             {
-                 // If we are very high, limit the drop to avoid skipping atmosphere entirely in one frame
-                 double maxSafeDrop = Math.Max(currentBuffer * 0.5, 10000.0);
-                 
-                 if (-deltaSMA > maxSafeDrop)
-                 {
-                     deltaSMA = -maxSafeDrop;
-                 }
+                double decayRatio = currentSma / originalSma;
+                ApplyDecayToVessel(v, o, deltaSMA, decayRatio, currentUT);
             }
-
-            double newSMA = a + deltaSMA;
-            double minSMA = v.mainBody.Radius + 100.0;
-
-            if (newSMA < minSMA)
-                newSMA = minSMA;
-
-            deltaSMA = newSMA - a;
-            double decayRatio = newSMA / a;
-            ApplyDecayToVessel(v, o, deltaSMA, decayRatio, currentUT);
+            else
+            {
+                ModifyOrbitToElements(o, currentSma, currentEcc, currentUT);
+            }
         }
 
         private void ApplyDecayToVessel(Vessel v, Orbit o, double deltaSMA, double eccFactor, double currentUT)
@@ -259,33 +219,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private double GetExosphericDensity(CelestialBody body, double altitude)
         {
-            double atmDepth = body.atmosphereDepth;
-            double maxCutoffAlt = atmDepth * naturalDecayAltitudeCutoff;
-
-            if (altitude > maxCutoffAlt) return 0.0;
-
-            double h_base = atmDepth * 0.95;
-            double p_base = body.GetPressure(h_base);
-            double t_base = body.GetTemperature(h_base);
-            double rho_base = FlightGlobals.getAtmDensity(p_base, t_base, body);
-            
-            if (rho_base < 1e-15) rho_base = 1e-15;
-            double curveRefScale = 10.0; 
-            double curveMaxAlt = atmDepth * curveRefScale;
-            double rho_target = 1e-14;   
-            
-            if (altitude <= h_base)
-            {
-                 double p = body.GetPressure(altitude);
-                 double t = body.GetTemperature(altitude);
-                 return FlightGlobals.getAtmDensity(p, t, body);
-            }
-            
-            double t_factor = (altitude - h_base) / (curveMaxAlt - h_base);
-            double t_curved = Math.Pow(t_factor, 0.5);
-            double logRho = Math.Log(rho_base) * (1.0 - t_curved) + Math.Log(rho_target) * t_curved;
-            
-            return Math.Exp(logRho);
+            return AtmosphericDecayModel.GetDensity(body, altitude, GetDecaySettings());
         }
 
         private void ModifyOrbit(Orbit o, double smaFactor, double eccFactor, double currentUT)
@@ -318,86 +252,46 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             o.UpdateFromUT(currentUT);
         }
 
-        private double EstimateDecayTime(Vessel v, double startAlt, double effectiveStormRate)
+        private void ModifyOrbitToElements(Orbit o, double newA, double newE, double currentUT)
         {
-            // Reentry time calculated based on Periapsis, ignoring Apoapsis.
-            CelestialBody body = v.mainBody;
-            double atmDepth = body.atmosphereDepth;
-            double targetAlt = atmDepth;
-            
-            if (startAlt <= atmDepth) return 0;
+            double currentMeanAnomaly = o.meanAnomaly;
 
-            if (!naturalDecayEnabled && effectiveStormRate > 0)
-            {
-                double startR = body.Radius + startAlt;
-                double endR = body.Radius + atmDepth;
-                double time = Math.Log(startR / endR) / effectiveStormRate;
-                if (time < 0) time = 0;
-                return time;
-            }
-            
-            double simAlt = startAlt;
-            double totalTime = 0;
-            double range = startAlt - atmDepth;
-            double stepAlt = range / 10.0;
-            
-            // Limit max iterations for performance
-            int maxSteps = 100; 
-            double stepScale = atmDepth * 0.2;
-            if (stepScale > 0)
-            {
-                double estimatedSteps = range / stepScale;
-                if (estimatedSteps < 20.0) maxSteps = 20;
-                else if (estimatedSteps < 100.0) maxSteps = (int)Math.Ceiling(estimatedSteps);
-            }
-            stepAlt = range / (double)maxSteps;
-            
-            double mu = body.gravParameter;
-            double R = body.Radius;
-            double mass = v.GetTotalMass();
-            if (mass <= 0.001) mass = 0.1;
-            double m_kg = mass * 1000.0;
-            if (m_kg < 1.0) m_kg = 100.0; // Safety
-            double area = Math.Pow(mass, 0.666) * 4.0;
-            double Cd = 2.0;
+            if (newE < 0.0) newE = 0.0;
+            if (newE >= 1.0) newE = 0.999999;
 
-            for (int i = 0; i < maxSteps; i++)
-            {
-                double midAlt = simAlt - (stepAlt * 0.5);
-                double simR = R + midAlt;
-                double simSMA = simR;
-                double simVel = Math.Sqrt(mu / simR);
-                
-                double simRho = GetExosphericDensity(body, midAlt);
+            o.semiMajorAxis = newA;
+            o.eccentricity = newE;
 
-                if (simRho < 1e-22) simRho = 1e-22;
+            o.epoch = currentUT;
+            o.meanAnomalyAtEpoch = currentMeanAnomaly;
 
-                double simDrag = 0.5 * simRho * simVel * simVel * Cd * area;
-                double sim_da_dt_natural = -(2.0 * simSMA * simSMA * simVel * simDrag) / (mu * m_kg);
-                sim_da_dt_natural *= naturalDecayMultiplier;
-
-                double sim_da_dt_storm = -simSMA * effectiveStormRate;
-                
-                double sim_da_dt = sim_da_dt_natural + sim_da_dt_storm;
-                
-                if (Math.Abs(sim_da_dt) < 1e-20) 
-                {
-                    totalTime += 1e9;
-                    break; 
-                }
-
-                double dt = stepAlt / Math.Abs(sim_da_dt);
-                
-                totalTime += dt;
-                simAlt -= stepAlt;
-                
-                if (simAlt <= atmDepth) break;
-            }
-            
-            return totalTime;
+            o.Init();
+            o.UpdateFromUT(currentUT);
         }
 
-        private double GetCachedDecayTime(Vessel v, double startAlt, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
+        private double EstimateDecayTime(Vessel v, bool useApoapsis, double effectiveStormRate)
+        {
+            if (v == null || v.orbit == null || v.mainBody == null)
+                return double.PositiveInfinity;
+
+            double targetAltitude = useApoapsis ? v.orbit.ApA : v.orbit.PeA;
+            if (targetAltitude <= v.mainBody.atmosphereDepth)
+                return 0.0;
+
+            double mass = v.GetTotalMass();
+            if (mass <= 0.001) mass = 0.1;
+
+            return AtmosphericDecayModel.EstimateTimeToAtmosphere(
+                v.mainBody,
+                v.orbit.semiMajorAxis,
+                v.orbit.eccentricity,
+                mass,
+                effectiveStormRate,
+                useApoapsis,
+                GetDecaySettings());
+        }
+
+        private double GetCachedDecayTime(Vessel v, bool useApoapsis, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
         {
             float currentTime = Time.realtimeSinceStartup;
 
@@ -413,7 +307,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 }
             }
 
-            double newTime = EstimateDecayTime(v, startAlt, effectiveStormRate);
+            double newTime = EstimateDecayTime(v, useApoapsis, effectiveStormRate);
 
             cache[v.id] = newTime;
             timeCache[v.id] = currentTime;
@@ -421,25 +315,25 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return newTime;
         }
 
-        private string GetDecayTimeDisplay(Vessel v, double altitude, bool isStorming, bool isForced, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
+        private string GetDecayTimeDisplay(Vessel v, bool useApoapsis, bool isStorming, bool isForced, double effectiveStormRate, Dictionary<Guid, double> cache, Dictionary<Guid, float> timeCache)
         {
             if (!v.mainBody.atmosphere) return Localizer.Format("#SWAOD_NotAvailable");
 
             double atmDepth = v.mainBody.atmosphereDepth;
+            double altitude = useApoapsis ? v.orbit.ApA : v.orbit.PeA;
             if (altitude <= atmDepth) return Localizer.Format("#SWAOD_ReEntry");
 
             double maxDecayAlt = atmDepth * naturalDecayAltitudeCutoff;
-            if (altitude > maxDecayAlt) return Localizer.Format("#SWAOD_NotAvailable");
 
             bool canDecay = isStorming || isForced;
             if (!canDecay && naturalDecayEnabled)
             {
-                if (altitude < maxDecayAlt) canDecay = true;
+                if (v.orbit.PeA <= maxDecayAlt) canDecay = true;
             }
 
             if (!canDecay) return Localizer.Format("#SWAOD_NotAvailable");
 
-            double timeSeconds = GetCachedDecayTime(v, altitude, effectiveStormRate, cache, timeCache);
+            double timeSeconds = GetCachedDecayTime(v, useApoapsis, effectiveStormRate, cache, timeCache);
             return FormatTime(timeSeconds);
         }
     }

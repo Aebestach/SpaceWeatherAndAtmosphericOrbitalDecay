@@ -80,7 +80,7 @@
 *   **配置面板**：点击 `Show Config` 可在游戏内调整UI比例、字体大小，查看Debug信息等。
 
 ### 注意事项
-*   UI中显示的再入时间与实际再入时间可能存在差异，这是由于计算误差和总步长所致，但估计值比实际再入时间要少（大约少10分钟）。
+*   UI 中显示的再入时间为估算值。它与实际衰减逻辑使用同一套轨道平均模型，但长时间高倍速、偏心轨道以及载具质量变化仍可能造成差异。
 
 ## 配置 | Configuration
 
@@ -95,9 +95,26 @@
 | `naturalDecayEnabled` | 启用自然大气衰减 | `true` |
 | `naturalDecayMultiplier` | 自然衰减力度倍率 | `1.0` |
 | `naturalDecayAltitudeCutoff` | 自然衰减生效的最大高度倍率 (相对于大气层高度) | `10.0` |
+| `exosphereFitStart` | 高层大气密度拟合窗口起点（大气高度比例） | `0.80` |
+| `exosphereFitEnd` | 高层大气密度拟合窗口终点（大气高度比例） | `0.90` |
+| `exosphereScaleHeightMin` | 外逸层外推标高下限（大气高度比例） | `0.03` |
+| `exosphereScaleHeightMax` | 外逸层外推标高上限（大气高度比例） | `0.30` |
+| `exosphereFitSamples` | 用于拟合高层大气 `ln(density)` 斜率的采样数 | `8` |
+| `orbitAverageSamples` | 轨道平均阻力估算的采样数 | `24` |
 | `warningEnabled` | 是否启用低轨道警告 | `true` |
 | `warningThreshold` | 低轨道警告阈值 (Periapsis < 大气高度 * (1.0 + 阈值)) | `0.2` |
 | `reentryDestroySeconds` | 未加载载具进入大气层后销毁的倒计时秒数 | `60.0` |
+
+## 公共 API | Public API
+
+其他模组可通过 `SpaceWeatherAndAtmosphericOrbitalDecay.OrbitalDecayApi` 读取 SWAOD 的衰减节奏估算：
+
+| 方法 | 用途 |
+| :--- | :--- |
+| `TryEstimateStationKeepingCadence(Vessel, 目标Ap, 目标Pe, 容差%, out estimate)` | 飞行中已发射载具的估算；Kerbalism 报告太阳风暴时会包含风暴衰减。 |
+| `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, 目标Ap, 目标Pe, 容差%, 质量, out estimate)` | VAB/装配规划，无 `Vessel` 实例；仅按目标轨道自然衰减估算（不含风暴）。 |
+
+两者均返回只读的 `StationKeepingEstimate`，包含到达容差带所需时间、衰减速率、是否风暴估算、容差掉高，以及恢复该掉高的预计 delta-v；不会修改载具轨道。[Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) 的寿命估算与 VAB 规划功能使用这些接口。
 
 ## 致谢 | Credits
 
