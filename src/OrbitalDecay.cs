@@ -20,6 +20,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private bool naturalDecayEnabled = true;
         private double naturalDecayMultiplier = 1.0;
         private double naturalDecayAltitudeCutoff = 10.0;
+        private double exosphereFitStart = 0.80;
+        private double exosphereFitEnd = 0.90;
+        private double exosphereScaleHeightMin = 0.03;
+        private double exosphereScaleHeightMax = 0.30;
+        private int exosphereFitSamples = 8;
+        private int orbitAverageSamples = 24;
 
         private bool warningEnabled = true;
         private double warningThreshold = 0.2;
@@ -120,6 +126,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 cfg.TryGetValue("naturalDecayEnabled", ref naturalDecayEnabled);
                 cfg.TryGetValue("naturalDecayMultiplier", ref naturalDecayMultiplier);
                 cfg.TryGetValue("naturalDecayAltitudeCutoff", ref naturalDecayAltitudeCutoff);
+                cfg.TryGetValue("exosphereFitStart", ref exosphereFitStart);
+                cfg.TryGetValue("exosphereFitEnd", ref exosphereFitEnd);
+                cfg.TryGetValue("exosphereScaleHeightMin", ref exosphereScaleHeightMin);
+                cfg.TryGetValue("exosphereScaleHeightMax", ref exosphereScaleHeightMax);
+                cfg.TryGetValue("exosphereFitSamples", ref exosphereFitSamples);
+                cfg.TryGetValue("orbitAverageSamples", ref orbitAverageSamples);
 
                 // Warnings
                 cfg.TryGetValue("warningEnabled", ref warningEnabled);
@@ -282,6 +294,20 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             int m = (int)(seconds / 60.0);
             int s = (int)(seconds % 60.0);
             return Localizer.Format("#SWAOD_Time_MinsSecs", m, s);
+        }
+
+        private AtmosphericDecayModel.DecaySettings GetDecaySettings()
+        {
+            AtmosphericDecayModel.DecaySettings settings = AtmosphericDecayModel.GetDefaultSettings();
+            settings.NaturalDecayMultiplier = naturalDecayMultiplier;
+            settings.NaturalDecayAltitudeCutoff = naturalDecayAltitudeCutoff;
+            settings.ExosphereFitStart = exosphereFitStart;
+            settings.ExosphereFitEnd = exosphereFitEnd;
+            settings.ExosphereScaleHeightMin = exosphereScaleHeightMin;
+            settings.ExosphereScaleHeightMax = exosphereScaleHeightMax;
+            settings.ExosphereFitSamples = exosphereFitSamples;
+            settings.OrbitAverageSamples = orbitAverageSamples;
+            return settings;
         }
 
         private string FormatAltitude(double meters)

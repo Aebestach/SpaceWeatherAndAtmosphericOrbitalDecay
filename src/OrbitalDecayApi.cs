@@ -29,6 +29,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             public bool NaturalDecayEnabled;
             public double NaturalDecayMultiplier;
             public double NaturalDecayAltitudeCutoff;
+            public double ExosphereFitStart;
+            public double ExosphereFitEnd;
+            public double ExosphereScaleHeightMin;
+            public double ExosphereScaleHeightMax;
+            public int ExosphereFitSamples;
+            public int OrbitAverageSamples;
         }
 
         private const double AU = 13599840256.0;
@@ -176,7 +182,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             {
                 double maxAlt = body.atmosphereDepth * cfg.NaturalDecayAltitudeCutoff;
                 if (periapsisAlt <= maxAlt)
-                    daDt += EstimateNaturalDaDt(vessel, body, orbit, periapsisAlt, cfg);
+                {
+                    double mass = vessel.GetTotalMass();
+                    if (mass <= 0.001)
+                        mass = 0.1;
+                    daDt += AtmosphericDecayModel.EstimateNaturalDaDt(
+                        body, orbit, mass, GetDecaySettings(cfg));
+                }
             }
 
             if (KerbalismIntegration.IsStormInProgress(vessel))
@@ -208,43 +220,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return daDt;
         }
 
-        private static double EstimateNaturalDaDt(
-            Vessel vessel,
-            CelestialBody body,
-            Orbit orbit,
-            double altitude,
-            ApiSettings cfg)
-        {
-            double density = GetExosphericDensity(body, altitude, cfg.NaturalDecayAltitudeCutoff);
-            if (density <= 1e-22)
-                density = 1e-22;
-
-            double mu = body.gravParameter;
-            double a = orbit.semiMajorAxis;
-            double r = body.Radius + altitude;
-            double vSq = mu * (2.0 / r - 1.0 / a);
-            double velocity = Math.Sqrt(Math.Max(0.0, vSq));
-            if (velocity <= 0.0)
-                return 0.0;
-
-            double mass = vessel.GetTotalMass();
-            if (mass <= 0.001)
-                mass = 0.1;
-
-            double massKg = mass * 1000.0;
-            double area = Math.Pow(mass, 0.666) * 4.0;
-            const double cd = 2.0;
-            double drag = 0.5 * density * velocity * velocity * cd * area;
-            double daDt = -(2.0 * a * a * velocity * drag) / (mu * massKg);
-
-            daDt *= cfg.NaturalDecayMultiplier;
-
-            if (vessel.loaded && altitude < body.atmosphereDepth && altitude > body.atmosphereDepth - 2000.0)
-                daDt *= 10.0;
-
-            return daDt;
-        }
-
         private static double EstimateDaDtForOrbit(
             CelestialBody body,
             double targetApoapsis,
@@ -269,76 +244,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (semiMajorAxis <= 0.0)
                 return 0.0;
 
-            return EstimateNaturalDaDtForOrbit(
+            double eccentricity = (targetApR - targetPeR) / (targetApR + targetPeR);
+            return AtmosphericDecayModel.EstimateNaturalDaDt(
                 body,
                 semiMajorAxis,
-                periapsisAlt,
+                Math.Max(0.0, eccentricity),
                 Math.Max(vesselMass, 0.1),
-                cfg);
-        }
-
-        private static double EstimateNaturalDaDtForOrbit(
-            CelestialBody body,
-            double semiMajorAxis,
-            double altitude,
-            double vesselMass,
-            ApiSettings cfg)
-        {
-            double density = GetExosphericDensity(body, altitude, cfg.NaturalDecayAltitudeCutoff);
-            if (density <= 1e-22)
-                density = 1e-22;
-
-            double mu = body.gravParameter;
-            double r = body.Radius + altitude;
-            double vSq = mu * (2.0 / r - 1.0 / semiMajorAxis);
-            double velocity = Math.Sqrt(Math.Max(0.0, vSq));
-            if (velocity <= 0.0)
-                return 0.0;
-
-            double massKg = Math.Max(vesselMass, 0.1) * 1000.0;
-            double area = Math.Pow(Math.Max(vesselMass, 0.1), 0.666) * 4.0;
-            const double cd = 2.0;
-            double drag = 0.5 * density * velocity * velocity * cd * area;
-            double daDt = -(2.0 * semiMajorAxis * semiMajorAxis * velocity * drag) / (mu * massKg);
-
-            return daDt * cfg.NaturalDecayMultiplier;
-        }
-
-        private static double GetExosphericDensity(
-            CelestialBody body,
-            double altitude,
-            double naturalDecayAltitudeCutoff)
-        {
-            double atmDepth = body.atmosphereDepth;
-            double maxCutoffAlt = atmDepth * naturalDecayAltitudeCutoff;
-
-            if (altitude > maxCutoffAlt)
-                return 0.0;
-
-            double hBase = atmDepth * 0.95;
-            double pBase = body.GetPressure(hBase);
-            double tBase = body.GetTemperature(hBase);
-            double rhoBase = FlightGlobals.getAtmDensity(pBase, tBase, body);
-
-            if (rhoBase < 1e-15)
-                rhoBase = 1e-15;
-
-            double curveRefScale = 10.0;
-            double curveMaxAlt = atmDepth * curveRefScale;
-            double rhoTarget = 1e-14;
-
-            if (altitude <= hBase)
-            {
-                double p = body.GetPressure(altitude);
-                double t = body.GetTemperature(altitude);
-                return FlightGlobals.getAtmDensity(p, t, body);
-            }
-
-            double tFactor = (altitude - hBase) / (curveMaxAlt - hBase);
-            double tCurved = Math.Pow(tFactor, 0.5);
-            double logRho = Math.Log(rhoBase) * (1.0 - tCurved) + Math.Log(rhoTarget) * tCurved;
-
-            return Math.Exp(logRho);
+                GetDecaySettings(cfg));
         }
 
         private static double EstimateToleranceDrop(
@@ -439,7 +351,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 ApplyStormDecayToNoAtmosphereBody = false,
                 NaturalDecayEnabled = true,
                 NaturalDecayMultiplier = 1.0,
-                NaturalDecayAltitudeCutoff = 10.0
+                NaturalDecayAltitudeCutoff = 10.0,
+                ExosphereFitStart = 0.80,
+                ExosphereFitEnd = 0.90,
+                ExosphereScaleHeightMin = 0.03,
+                ExosphereScaleHeightMax = 0.30,
+                ExosphereFitSamples = 8,
+                OrbitAverageSamples = 24
             };
 
             ConfigNode[] nodes = GameDatabase.Instance?.GetConfigNodes("ORBITAL_DECAY");
@@ -453,8 +371,28 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             cfg.TryGetValue("naturalDecayEnabled", ref settings.NaturalDecayEnabled);
             cfg.TryGetValue("naturalDecayMultiplier", ref settings.NaturalDecayMultiplier);
             cfg.TryGetValue("naturalDecayAltitudeCutoff", ref settings.NaturalDecayAltitudeCutoff);
+            cfg.TryGetValue("exosphereFitStart", ref settings.ExosphereFitStart);
+            cfg.TryGetValue("exosphereFitEnd", ref settings.ExosphereFitEnd);
+            cfg.TryGetValue("exosphereScaleHeightMin", ref settings.ExosphereScaleHeightMin);
+            cfg.TryGetValue("exosphereScaleHeightMax", ref settings.ExosphereScaleHeightMax);
+            cfg.TryGetValue("exosphereFitSamples", ref settings.ExosphereFitSamples);
+            cfg.TryGetValue("orbitAverageSamples", ref settings.OrbitAverageSamples);
 
             return settings;
+        }
+
+        private static AtmosphericDecayModel.DecaySettings GetDecaySettings(ApiSettings cfg)
+        {
+            AtmosphericDecayModel.DecaySettings decaySettings = AtmosphericDecayModel.GetDefaultSettings();
+            decaySettings.NaturalDecayMultiplier = cfg.NaturalDecayMultiplier;
+            decaySettings.NaturalDecayAltitudeCutoff = cfg.NaturalDecayAltitudeCutoff;
+            decaySettings.ExosphereFitStart = cfg.ExosphereFitStart;
+            decaySettings.ExosphereFitEnd = cfg.ExosphereFitEnd;
+            decaySettings.ExosphereScaleHeightMin = cfg.ExosphereScaleHeightMin;
+            decaySettings.ExosphereScaleHeightMax = cfg.ExosphereScaleHeightMax;
+            decaySettings.ExosphereFitSamples = cfg.ExosphereFitSamples;
+            decaySettings.OrbitAverageSamples = cfg.OrbitAverageSamples;
+            return decaySettings;
         }
 
         private static double GetDistanceToSun(Vessel vessel)
