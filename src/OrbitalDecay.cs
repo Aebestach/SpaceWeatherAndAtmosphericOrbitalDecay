@@ -15,7 +15,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private bool debugMode = false;
         private double stormDecayRate = 1.5e-7;
         private bool stormDistanceScaling = true;
-        private bool applyStormDecayToNoAtmosphereBody = false;
 
         private bool naturalDecayEnabled = true;
         private double naturalDecayMultiplier = 1.0;
@@ -120,7 +119,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 // Storm
                 cfg.TryGetValue("stormDecayRate", ref stormDecayRate);
                 cfg.TryGetValue("stormDistanceScaling", ref stormDistanceScaling);
-                cfg.TryGetValue("applyStormDecayToNoAtmosphereBody", ref applyStormDecayToNoAtmosphereBody);
 
                 // Natural
                 cfg.TryGetValue("naturalDecayEnabled", ref naturalDecayEnabled);
@@ -241,18 +239,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 Vessel v = FlightGlobals.Vessels[i];
                 if (!IsValidVessel(v)) continue;
 
-                // Solar Storm Decay Logic
                 bool stormActive = KerbalismIntegration.IsStormInProgress(v) || debugForceStorm;
-
-                if (stormActive && !vesselDecayDisabled.Contains(v.id))
+                if ((naturalDecayEnabled || stormActive) && !vesselDecayDisabled.Contains(v.id))
                 {
-                    ApplyStormDecay(v, dt, currentUT);
-                }
-
-                // Natural Atmospheric Decay Logic
-                if (naturalDecayEnabled && !vesselDecayDisabled.Contains(v.id))
-                {
-                    ApplyNaturalDecay(v, dt, currentUT);
+                    ApplyNaturalDecay(v, dt, currentUT, stormActive);
                 }
                 
             }

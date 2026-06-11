@@ -28,11 +28,13 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 *   **Natural Orbital Decay**
     *   Simulates atmospheric drag for unloaded and loaded vessels in the upper atmosphere/exosphere.
     *   Effectively cleans up orbital debris, preventing low-orbit junk accumulation.
-    *   **Realistic Physics**: Calculates drag based on the vessel's estimated Area-to-Mass Ratio and real-time atmospheric density.
+    *   **Realistic Physics**: Uses area-to-mass ratio and real-time atmospheric density to derive changes in `a` and `e` from energy and angular-momentum loss. Highly eccentric orbits use adaptive periapsis-arc sampling.
+    *   Exosphere density uses exponential scale-height extrapolation; orbit evolution and drag integration follow the physics model above.
 
 *   **Solar Storm Effects** (Requires Kerbalism)
-    *   Drastically increases orbital decay rates during solar storms, simulating atmospheric expansion caused by solar activity.
-    *   **Configurable**: Toggle whether bodies without atmospheres (e.g., Mun) are affected by storm decay in `Settings.cfg` (Disabled by default).
+    *   Enabled only when Kerbalism is installed and the vessel is in an active solar storm.
+    *   Storm decay is modeled as **extra atmospheric drag** within the unified drag model, simulating atmospheric expansion from solar activity.
+    *   Applies only to orbiting vessels around bodies with atmospheres.
 
 *   **Real-time Monitoring UI**
     *   Provide a control panel to monitor the status of on-orbit/sub-orbit vehicles.
@@ -79,7 +81,8 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 *   **Config Panel**: Click `Show Config` to adjust UI scale, font size, view debug info, etc. in-game.
 
 ### Important Notes
-*   The re-entry time displayed in the UI is an estimate. It uses the same orbit-averaged decay model as the runtime decay logic, but long time-warps, eccentric orbits, and changing vessel mass can still introduce differences.
+*   The re-entry time shown in the UI is an estimate that uses the same drag model as runtime decay. For eccentric orbits, periapsis/apoapsis decay rates are integrated step by step.
+*   Long time-warps, changing vessel mass, and the simplified prograde/retrograde drag application used for **loaded** vessels can introduce differences between estimates and the actual orbit.
 
 ## Configuration
 
@@ -90,7 +93,6 @@ Besides the in-game UI, advanced configuration can be done by editing:
 | :--- | :--- | :--- |
 | `stormDecayRate` | Base decay rate during solar storms | `1.5e-7` |
 | `stormDistanceScaling` | Does storm intensity scale with distance from Sun | `true` |
-| `applyStormDecayToNoAtmosphereBody` | Apply storm decay to bodies without atmosphere | `false` |
 | `naturalDecayEnabled` | Enable natural atmospheric decay | `true` |
 | `naturalDecayMultiplier` | Multiplier for natural decay force | `1.0` |
 | `naturalDecayAltitudeCutoff` | Max altitude multiplier for natural decay (Relative to Atmo Height) | `10.0` |
@@ -110,10 +112,11 @@ Other mods can query SWAOD's decay cadence through `SpaceWeatherAndAtmosphericOr
 
 | Method | Use case |
 | :--- | :--- |
-| `TryEstimateStationKeepingCadence(Vessel, targetAp, targetPe, tolerance%, out estimate)` | In-flight estimate using the launched vessel's current state; includes solar-storm decay when Kerbalism reports an active storm. |
+| `TryEstimateStationKeepingCadence(Vessel, targetAp, targetPe, tolerance%, out estimate)` | In-flight estimate using the launched vessel's current state; includes storm-enhanced atmospheric drag only when Kerbalism is installed and the vessel is in an active solar storm. |
 | `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, targetAp, targetPe, tolerance%, mass, out estimate)` | VAB/editor planning with no `Vessel` instance; uses natural decay at the target orbit only (no storm estimate). |
+| `TryEstimateCurrentDecayRates(Vessel, out rates)` | Query the vessel's current instantaneous decay rates; includes storm enhancement only during an active Kerbalism storm. |
 
-Both return a read-only `StationKeepingEstimate` with seconds to the tolerance band, decay rate, storm flag, tolerance drop, and estimated delta-v to restore that drop. They do not modify vessel orbits. [Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) uses these APIs for its lifetime and VAB planning estimates.
+All of these APIs return read-only estimates and do not modify vessel orbits. `StationKeepingEstimate` and `CurrentDecayRates` provide seconds to the tolerance band, an effective decay rate, `DaDt`/`DeDt`/`PeriapsisDaDt`/`ApoapsisDaDt`, a storm flag, tolerance drop, and estimated delta-v to restore that drop (`CurrentDecayRates` omits tolerance-related fields). Storm decay is modeled as extra atmospheric drag within the unified drag model. [Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) uses these APIs for its lifetime and VAB planning estimates.
 
 ## Credits
 
