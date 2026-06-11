@@ -18,7 +18,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             public bool IsForced;
             public bool IsNatural;
             public bool StormInRange;
-            public double EffectiveStormRate;
+            public double StormDragMultiplier;
             public double CurrentStormRate;
             public string VesselNameRich;
             public string BodyName;
@@ -529,17 +529,20 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             state.IsStorming = stormActive;
             state.IsNatural = false;
             state.StormInRange = false;
-            state.EffectiveStormRate = 0;
+            state.StormDragMultiplier = 0;
             state.CurrentStormRate = 0;
 
             double periapsisAlt = v.orbit.PeA;
+            double mass = v.GetTotalMass();
+            if (mass <= 0.001) mass = 0.1;
             if (naturalDecayEnabled && v.mainBody.atmosphere && periapsisAlt < v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff)
             {
-                double mass = v.GetTotalMass();
-                if (mass <= 0.001) mass = 0.1;
-                double naturalDaDt = AtmosphericDecayModel.EstimateNaturalDaDt(
+                AtmosphericDecayModel.NaturalDecayRates naturalRates = AtmosphericDecayModel.EstimateNaturalDecayRates(
                     v.mainBody, v.orbit, mass, GetDecaySettings());
-                if (Math.Abs(naturalDaDt) > 1e-12)
+                if (Math.Abs(naturalRates.DaDt) > 1e-12 ||
+                    Math.Abs(naturalRates.DeDt) > 1e-12 ||
+                    Math.Abs(naturalRates.PeriapsisDaDt) > 1e-12 ||
+                    Math.Abs(naturalRates.ApoapsisDaDt) > 1e-12)
                 {
                     state.IsNatural = true;
                 }
@@ -550,11 +553,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 if (v.mainBody.atmosphere)
                 {
                     double maxAlt = v.mainBody.atmosphereDepth * naturalDecayAltitudeCutoff;
-                    state.StormInRange = periapsisAlt <= maxAlt;
-                }
-                else if (applyStormDecayToNoAtmosphereBody)
-                {
-                    double maxAlt = v.mainBody.sphereOfInfluence - v.mainBody.Radius;
                     state.StormInRange = periapsisAlt <= maxAlt;
                 }
             }
@@ -569,7 +567,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     distanceFactor = Math.Pow(AU / dist, 2);
                 }
                 state.CurrentStormRate = stormDecayRate * distanceFactor;
-                state.EffectiveStormRate = state.CurrentStormRate;
+                state.StormDragMultiplier = GetStormDragMultiplier(
+                    v,
+                    v.orbit.semiMajorAxis,
+                    v.orbit.eccentricity,
+                    mass,
+                    GetDecaySettings(),
+                    true);
             }
 
             bool show = false;
@@ -595,8 +599,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             state.BodyName = v.mainBody.name;
             state.PeAltText = Localizer.Format("#SWAOD_PeAlt", FormatAltitude(v.orbit.PeA));
             state.ApAltText = Localizer.Format("#SWAOD_ApAlt", FormatAltitude(v.orbit.ApA));
-            state.PeTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, false, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesPe, lastDecayCalcTimePe));
-            state.ApTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, true, state.IsStorming, state.IsForced, state.EffectiveStormRate, cachedDecayTimesAp, lastDecayCalcTimeAp));
+            state.PeTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, false, state.IsStorming, state.IsForced, state.StormDragMultiplier, cachedDecayTimesPe, lastDecayCalcTimePe));
+            state.ApTimeText = Localizer.Format("#SWAOD_DecayTime", GetDecayTimeDisplay(v, true, state.IsStorming, state.IsForced, state.StormDragMultiplier, cachedDecayTimesAp, lastDecayCalcTimeAp));
             state.IncText = Localizer.Format("#SWAOD_Inc", v.orbit.inclination.ToString("F2"));
             state.EccText = Localizer.Format("#SWAOD_Ecc", v.orbit.eccentricity.ToString("F3"));
 

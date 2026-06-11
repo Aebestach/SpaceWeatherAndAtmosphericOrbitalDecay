@@ -29,11 +29,13 @@
 *   **自然轨道衰减**
     *   模拟高层大气/外逸层中未加载和加载飞船的大气阻力。
     *   有效清理轨道碎片，防止低轨道垃圾永久滞留。
-    *   **真实物理模拟**：根据飞船的估算面质比（Area-to-Mass Ratio）和实时大气密度计算阻力。
+    *   **真实物理模拟**：根据飞船面质比与实时大气密度，通过能量/角动量损失推导 `a`、`e` 的变化；高偏心轨道在近地点大气弧段自适应采样。
+    *   外逸层密度采用指数标高外推；轨道演化与阻力积分基于上述物理模型。
 
 *   **太阳风暴效应** (需要 Kerbalism)
-    *   在太阳风暴期间大幅增加轨道衰减率，模拟因太阳活动导致的大气膨胀效应。
-    *   **可配置性**：可在 `Settings.cfg` 中设置是否让无大气星球（如 Mun）也受太阳风暴影响（默认关闭）。
+    *   仅在安装 Kerbalism 且载具处于太阳风暴时启用。
+    *   风暴作为**额外大气拖曳倍率**并入统一阻力模型，模拟太阳活动导致的大气膨胀。
+    *   仅对有大气天体的在轨载具生效。
 
 *   **实时监控 UI**
     *   提供控制面板监控在轨/次轨载具的状态。
@@ -80,7 +82,8 @@
 *   **配置面板**：点击 `Show Config` 可在游戏内调整UI比例、字体大小，查看Debug信息等。
 
 ### 注意事项
-*   UI 中显示的再入时间为估算值。它与实际衰减逻辑使用同一套轨道平均模型，但长时间高倍速、偏心轨道以及载具质量变化仍可能造成差异。
+*   UI 中显示的再入时间为估算值，与实际衰减共用同一套阻力模型；高偏心轨道按近/远地点衰减速率逐步积分估算。
+*   长时间高倍速、载具质量变化，以及**已加载**载具采用沿速度方向的简化阻力施加方式，可能造成估算与实际轨道之间的差异。
 
 ## 配置 | Configuration
 
@@ -91,7 +94,6 @@
 | :--- | :--- | :--- |
 | `stormDecayRate` | 太阳风暴期间的基础衰减率 | `1.5e-7` |
 | `stormDistanceScaling` | 风暴强度是否随距离太阳远近而变化 | `true` |
-| `applyStormDecayToNoAtmosphereBody` | 是否对无大气天体应用风暴衰减 | `false` |
 | `naturalDecayEnabled` | 启用自然大气衰减 | `true` |
 | `naturalDecayMultiplier` | 自然衰减力度倍率 | `1.0` |
 | `naturalDecayAltitudeCutoff` | 自然衰减生效的最大高度倍率 (相对于大气层高度) | `10.0` |
@@ -111,10 +113,11 @@
 
 | 方法 | 用途 |
 | :--- | :--- |
-| `TryEstimateStationKeepingCadence(Vessel, 目标Ap, 目标Pe, 容差%, out estimate)` | 飞行中已发射载具的估算；Kerbalism 报告太阳风暴时会包含风暴衰减。 |
+| `TryEstimateStationKeepingCadence(Vessel, 目标Ap, 目标Pe, 容差%, out estimate)` | 飞行中已发射载具的估算；仅在安装 Kerbalism 且该载具处于太阳风暴时，结果会包含风暴增强的大气拖曳衰减。 |
 | `TryEstimateStationKeepingCadenceForOrbit(CelestialBody, 目标Ap, 目标Pe, 容差%, 质量, out estimate)` | VAB/装配规划，无 `Vessel` 实例；仅按目标轨道自然衰减估算（不含风暴）。 |
+| `TryEstimateCurrentDecayRates(Vessel, out rates)` | 查询载具当前瞬时衰减率；同样仅在 Kerbalism 风暴进行时包含风暴增强。 |
 
-两者均返回只读的 `StationKeepingEstimate`，包含到达容差带所需时间、衰减速率、是否风暴估算、容差掉高，以及恢复该掉高的预计 delta-v；不会修改载具轨道。[Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) 的寿命估算与 VAB 规划功能使用这些接口。
+上述接口均返回只读估算结果，不会修改载具轨道。`StationKeepingEstimate` 与 `CurrentDecayRates` 包含到达容差带所需时间、综合衰减速率、`DaDt`/`DeDt`/`PeriapsisDaDt`/`ApoapsisDaDt`、是否风暴估算、容差掉高，以及恢复该掉高的预计 delta-v（`CurrentDecayRates` 不含容差相关字段）。风暴衰减作为大气拖曳增强倍率并入统一阻力模型。[Orbital Keeper](https://github.com/Aebestach/OrbitalKeeper) 的寿命估算与 VAB 规划功能使用这些接口。
 
 ## 致谢 | Credits
 

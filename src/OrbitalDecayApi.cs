@@ -15,8 +15,24 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             public bool IsStormEstimate;
             public double SecondsToTolerance;
             public double DecayRate;
+            public double DaDt;
+            public double DeDt;
+            public double PeriapsisDaDt;
+            public double ApoapsisDaDt;
             public double ToleranceDrop;
             public double DeltaVToRestoreToleranceDrop;
+            public string Reason;
+        }
+
+        public struct CurrentDecayRates
+        {
+            public bool Available;
+            public bool IsStormEstimate;
+            public double DecayRate;
+            public double DaDt;
+            public double DeDt;
+            public double PeriapsisDaDt;
+            public double ApoapsisDaDt;
             public string Reason;
         }
 
@@ -25,7 +41,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             public bool Loaded;
             public double StormDecayRate;
             public bool StormDistanceScaling;
-            public bool ApplyStormDecayToNoAtmosphereBody;
             public bool NaturalDecayEnabled;
             public double NaturalDecayMultiplier;
             public double NaturalDecayAltitudeCutoff;
@@ -78,8 +93,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 return false;
             }
 
-            double daDt = EstimateDaDt(vessel, out bool stormEstimate);
-            double decayRate = Math.Abs(daDt);
+            CurrentDecayRates rates = EstimateDecayRates(vessel);
+            double decayRate = rates.DecayRate;
             if (decayRate <= 1e-12)
             {
                 estimate.Reason = "No active decay";
@@ -87,9 +102,13 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             }
 
             estimate.Available = true;
-            estimate.IsStormEstimate = stormEstimate;
+            estimate.IsStormEstimate = rates.IsStormEstimate;
             estimate.ToleranceDrop = toleranceDrop;
             estimate.DecayRate = decayRate;
+            estimate.DaDt = rates.DaDt;
+            estimate.DeDt = rates.DeDt;
+            estimate.PeriapsisDaDt = rates.PeriapsisDaDt;
+            estimate.ApoapsisDaDt = rates.ApoapsisDaDt;
             estimate.SecondsToTolerance = Math.Max(1.0, toleranceDrop / decayRate);
             estimate.DeltaVToRestoreToleranceDrop = EstimateDeltaVToRestoreDrop(vessel, toleranceDrop);
             estimate.Reason = string.Empty;
@@ -137,8 +156,12 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 return false;
             }
 
-            double daDt = EstimateDaDtForOrbit(body, targetApoapsis, targetPeriapsis, vesselMass);
-            double decayRate = Math.Abs(daDt);
+            AtmosphericDecayModel.NaturalDecayRates rates = EstimateNaturalRatesForOrbit(
+                body,
+                targetApoapsis,
+                targetPeriapsis,
+                vesselMass);
+            double decayRate = GetUsefulDecayRate(rates);
             if (decayRate <= 1e-12)
             {
                 estimate.Reason = "No active decay";
@@ -150,6 +173,10 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             estimate.IsStormEstimate = false;
             estimate.ToleranceDrop = toleranceDrop;
             estimate.DecayRate = decayRate;
+            estimate.DaDt = rates.DaDt;
+            estimate.DeDt = rates.DeDt;
+            estimate.PeriapsisDaDt = rates.PeriapsisDaDt;
+            estimate.ApoapsisDaDt = rates.ApoapsisDaDt;
             estimate.SecondsToTolerance = Math.Max(1.0, toleranceDrop / decayRate);
             estimate.DeltaVToRestoreToleranceDrop =
                 EstimateDeltaVToRestoreDrop(body, targetSma, targetPeriapsis, toleranceDrop);
@@ -157,100 +184,155 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             return true;
         }
 
-        /// <summary>
-        /// Estimates the current SWAOD semi-major-axis decay rate in m/s.
-        /// Negative values mean orbital decay, zero means SWAOD is not acting.
-        /// </summary>
-        public static double EstimateCurrentDaDt(Vessel vessel, out bool stormEstimate)
+        public static bool TryEstimateCurrentDecayRates(
+            Vessel vessel,
+            out CurrentDecayRates rates)
         {
-            return EstimateDaDt(vessel, out stormEstimate);
+            rates = EstimateDecayRates(vessel);
+            return rates.Available;
         }
 
-        private static double EstimateDaDt(Vessel vessel, out bool stormEstimate)
+        private static CurrentDecayRates EstimateDecayRates(Vessel vessel)
         {
-            stormEstimate = false;
+            var result = new CurrentDecayRates
+            {
+                Available = false,
+                Reason = "Unavailable"
+            };
+
             if (vessel == null || vessel.orbit == null || vessel.mainBody == null)
-                return 0.0;
+            {
+                result.Reason = "No vessel";
+                return result;
+            }
 
             ApiSettings cfg = GetSettings();
             CelestialBody body = vessel.mainBody;
             Orbit orbit = vessel.orbit;
             double periapsisAlt = Math.Max(orbit.PeA, 0.0);
-            double daDt = 0.0;
+            double maxAlt = body.atmosphere ? body.atmosphereDepth * cfg.NaturalDecayAltitudeCutoff : 0.0;
 
-            if (cfg.NaturalDecayEnabled && body.atmosphere)
+            if (!body.atmosphere || periapsisAlt > maxAlt)
             {
-                double maxAlt = body.atmosphereDepth * cfg.NaturalDecayAltitudeCutoff;
-                if (periapsisAlt <= maxAlt)
-                {
-                    double mass = vessel.GetTotalMass();
-                    if (mass <= 0.001)
-                        mass = 0.1;
-                    daDt += AtmosphericDecayModel.EstimateNaturalDaDt(
-                        body, orbit, mass, GetDecaySettings(cfg));
-                }
+                result.Reason = "Outside atmospheric decay range";
+                return result;
             }
 
+            double mass = vessel.GetTotalMass();
+            if (mass <= 0.001)
+                mass = 0.1;
+
+            AtmosphericDecayModel.DecaySettings decaySettings = GetDecaySettings(cfg);
+            double multiplier = cfg.NaturalDecayEnabled ? Math.Max(cfg.NaturalDecayMultiplier, 0.0) : 0.0;
+            bool stormEstimate = false;
             if (KerbalismIntegration.IsStormInProgress(vessel))
             {
-                bool stormInRange = false;
-                if (body.atmosphere)
-                {
-                    stormInRange = periapsisAlt <= body.atmosphereDepth * cfg.NaturalDecayAltitudeCutoff;
-                }
-                else if (cfg.ApplyStormDecayToNoAtmosphereBody)
-                {
-                    stormInRange = periapsisAlt <= body.sphereOfInfluence - body.Radius;
-                }
-
-                if (stormInRange)
-                {
-                    double distanceFactor = 1.0;
-                    if (cfg.StormDistanceScaling)
-                    {
-                        double dist = Math.Max(GetDistanceToSun(vessel), 1000.0);
-                        distanceFactor = Math.Pow(AU / dist, 2.0);
-                    }
-
-                    daDt += -orbit.semiMajorAxis * cfg.StormDecayRate * distanceFactor;
-                    stormEstimate = true;
-                }
+                double stormMultiplier = GetStormDragMultiplier(vessel, cfg, decaySettings, mass);
+                multiplier += stormMultiplier;
+                stormEstimate = stormMultiplier > 0.0;
             }
 
-            return daDt;
+            if (multiplier <= 0.0)
+            {
+                result.Reason = "No active decay";
+                return result;
+            }
+
+            decaySettings.NaturalDecayMultiplier = multiplier;
+            AtmosphericDecayModel.NaturalDecayRates combinedRates =
+                AtmosphericDecayModel.EstimateNaturalDecayRates(body, orbit, mass, decaySettings);
+            double usefulDecayRate = GetUsefulDecayRate(combinedRates);
+            if (usefulDecayRate <= 1e-12)
+            {
+                result.Reason = "No active decay";
+                return result;
+            }
+
+            result.Available = true;
+            result.IsStormEstimate = stormEstimate;
+            result.DecayRate = usefulDecayRate;
+            result.DaDt = combinedRates.DaDt;
+            result.DeDt = combinedRates.DeDt;
+            result.PeriapsisDaDt = combinedRates.PeriapsisDaDt;
+            result.ApoapsisDaDt = combinedRates.ApoapsisDaDt;
+            result.Reason = string.Empty;
+            return result;
         }
 
-        private static double EstimateDaDtForOrbit(
+        private static AtmosphericDecayModel.NaturalDecayRates EstimateNaturalRatesForOrbit(
             CelestialBody body,
             double targetApoapsis,
             double targetPeriapsis,
             double vesselMass)
         {
             if (body == null)
-                return 0.0;
+                return new AtmosphericDecayModel.NaturalDecayRates();
 
             ApiSettings cfg = GetSettings();
             if (!cfg.NaturalDecayEnabled || !body.atmosphere)
-                return 0.0;
+                return new AtmosphericDecayModel.NaturalDecayRates();
 
             double periapsisAlt = Math.Max(targetPeriapsis, 0.0);
             double maxAlt = body.atmosphereDepth * cfg.NaturalDecayAltitudeCutoff;
             if (periapsisAlt > maxAlt)
-                return 0.0;
+                return new AtmosphericDecayModel.NaturalDecayRates();
 
             double targetApR = body.Radius + targetApoapsis;
             double targetPeR = body.Radius + targetPeriapsis;
             double semiMajorAxis = (targetApR + targetPeR) * 0.5;
             if (semiMajorAxis <= 0.0)
-                return 0.0;
+                return new AtmosphericDecayModel.NaturalDecayRates();
 
             double eccentricity = (targetApR - targetPeR) / (targetApR + targetPeR);
-            return AtmosphericDecayModel.EstimateNaturalDaDt(
+            return AtmosphericDecayModel.EstimateNaturalDecayRates(
                 body,
                 semiMajorAxis,
                 Math.Max(0.0, eccentricity),
                 Math.Max(vesselMass, 0.1),
                 GetDecaySettings(cfg));
+        }
+
+        private static double GetStormDragMultiplier(
+            Vessel vessel,
+            ApiSettings cfg,
+            AtmosphericDecayModel.DecaySettings baseSettings,
+            double mass)
+        {
+            if (vessel?.mainBody == null || !vessel.mainBody.atmosphere)
+                return 0.0;
+
+            AtmosphericDecayModel.DecaySettings unitSettings = baseSettings;
+            unitSettings.NaturalDecayMultiplier = 1.0;
+            AtmosphericDecayModel.NaturalDecayRates unitRates =
+                AtmosphericDecayModel.EstimateNaturalDecayRates(
+                    vessel.mainBody,
+                    vessel.orbit,
+                    mass,
+                    unitSettings);
+
+            double baselineRate = Math.Abs(unitRates.DaDt);
+            if (baselineRate <= 1e-12)
+                return 0.0;
+
+            double distanceFactor = 1.0;
+            if (cfg.StormDistanceScaling)
+            {
+                double dist = Math.Max(GetDistanceToSun(vessel), 1000.0);
+                distanceFactor = Math.Pow(AU / dist, 2.0);
+            }
+
+            double effectiveStormRate = cfg.StormDecayRate * distanceFactor;
+            return Math.Abs(vessel.orbit.semiMajorAxis * effectiveStormRate) / baselineRate;
+        }
+
+        private static double GetUsefulDecayRate(AtmosphericDecayModel.NaturalDecayRates rates)
+        {
+            double rate = Math.Abs(rates.DaDt);
+            if (rates.PeriapsisDaDt < 0.0)
+                rate = Math.Max(rate, -rates.PeriapsisDaDt);
+            if (rates.ApoapsisDaDt < 0.0)
+                rate = Math.Max(rate, -rates.ApoapsisDaDt);
+            return rate;
         }
 
         private static double EstimateToleranceDrop(
@@ -348,7 +430,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 Loaded = true,
                 StormDecayRate = 1.5e-7,
                 StormDistanceScaling = true,
-                ApplyStormDecayToNoAtmosphereBody = false,
                 NaturalDecayEnabled = true,
                 NaturalDecayMultiplier = 1.0,
                 NaturalDecayAltitudeCutoff = 10.0,
@@ -367,7 +448,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             ConfigNode cfg = nodes[0];
             cfg.TryGetValue("stormDecayRate", ref settings.StormDecayRate);
             cfg.TryGetValue("stormDistanceScaling", ref settings.StormDistanceScaling);
-            cfg.TryGetValue("applyStormDecayToNoAtmosphereBody", ref settings.ApplyStormDecayToNoAtmosphereBody);
             cfg.TryGetValue("naturalDecayEnabled", ref settings.NaturalDecayEnabled);
             cfg.TryGetValue("naturalDecayMultiplier", ref settings.NaturalDecayMultiplier);
             cfg.TryGetValue("naturalDecayAltitudeCutoff", ref settings.NaturalDecayAltitudeCutoff);
