@@ -50,6 +50,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             public double ExosphereScaleHeightMax;
             public int ExosphereFitSamples;
             public int OrbitAverageSamples;
+            public bool WarningEnabled;
+            public double WarningThreshold;
+            public double ReentryDestroySeconds;
         }
 
         private const double AU = 13599840256.0;
@@ -421,6 +424,29 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         private static ApiSettings GetSettings()
         {
+            SwaodGameplayParameters parameters = SwaodGameplayParameters.Instance;
+            if (parameters != null)
+            {
+                settingsLoaded = true;
+                settings = new ApiSettings { Loaded = true };
+                parameters.ApplyTo(
+                    ref settings.StormDecayRate,
+                    ref settings.StormDistanceScaling,
+                    ref settings.NaturalDecayEnabled,
+                    ref settings.NaturalDecayMultiplier,
+                    ref settings.NaturalDecayAltitudeCutoff,
+                    ref settings.ExosphereFitStart,
+                    ref settings.ExosphereFitEnd,
+                    ref settings.ExosphereScaleHeightMin,
+                    ref settings.ExosphereScaleHeightMax,
+                    ref settings.ExosphereFitSamples,
+                    ref settings.OrbitAverageSamples,
+                    ref settings.WarningEnabled,
+                    ref settings.WarningThreshold,
+                    ref settings.ReentryDestroySeconds);
+                return settings;
+            }
+
             if (settingsLoaded)
                 return settings;
 
@@ -438,25 +464,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 ExosphereScaleHeightMin = 0.03,
                 ExosphereScaleHeightMax = 0.30,
                 ExosphereFitSamples = 8,
-                OrbitAverageSamples = 24
+                OrbitAverageSamples = 24,
+                WarningEnabled = true,
+                WarningThreshold = 0.2,
+                ReentryDestroySeconds = 60.0
             };
-
-            ConfigNode[] nodes = GameDatabase.Instance?.GetConfigNodes("ORBITAL_DECAY");
-            if (nodes == null || nodes.Length == 0)
-                return settings;
-
-            ConfigNode cfg = nodes[0];
-            cfg.TryGetValue("stormDecayRate", ref settings.StormDecayRate);
-            cfg.TryGetValue("stormDistanceScaling", ref settings.StormDistanceScaling);
-            cfg.TryGetValue("naturalDecayEnabled", ref settings.NaturalDecayEnabled);
-            cfg.TryGetValue("naturalDecayMultiplier", ref settings.NaturalDecayMultiplier);
-            cfg.TryGetValue("naturalDecayAltitudeCutoff", ref settings.NaturalDecayAltitudeCutoff);
-            cfg.TryGetValue("exosphereFitStart", ref settings.ExosphereFitStart);
-            cfg.TryGetValue("exosphereFitEnd", ref settings.ExosphereFitEnd);
-            cfg.TryGetValue("exosphereScaleHeightMin", ref settings.ExosphereScaleHeightMin);
-            cfg.TryGetValue("exosphereScaleHeightMax", ref settings.ExosphereScaleHeightMax);
-            cfg.TryGetValue("exosphereFitSamples", ref settings.ExosphereFitSamples);
-            cfg.TryGetValue("orbitAverageSamples", ref settings.OrbitAverageSamples);
 
             return settings;
         }

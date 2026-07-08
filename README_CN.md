@@ -87,25 +87,7 @@
 
 ## 配置 | Configuration
 
-除了游戏内 UI，您还可以通过编辑以下文件进行高级配置：
-`GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg`
-
-| 配置项 | 描述 | 默认值 |
-| :--- | :--- | :--- |
-| `stormDecayRate` | 太阳风暴期间的基础衰减率 | `1.5e-7` |
-| `stormDistanceScaling` | 风暴强度是否随距离太阳远近而变化 | `true` |
-| `naturalDecayEnabled` | 启用自然大气衰减 | `true` |
-| `naturalDecayMultiplier` | 自然衰减力度倍率 | `1.0` |
-| `naturalDecayAltitudeCutoff` | 自然衰减生效的最大高度倍率 (相对于大气层高度) | `10.0` |
-| `exosphereFitStart` | 高层大气密度拟合窗口起点（大气高度比例） | `0.80` |
-| `exosphereFitEnd` | 高层大气密度拟合窗口终点（大气高度比例） | `0.90` |
-| `exosphereScaleHeightMin` | 外逸层外推标高下限（大气高度比例） | `0.03` |
-| `exosphereScaleHeightMax` | 外逸层外推标高上限（大气高度比例） | `0.30` |
-| `exosphereFitSamples` | 用于拟合高层大气 `ln(density)` 斜率的采样数 | `8` |
-| `orbitAverageSamples` | 轨道平均阻力估算的采样数 | `24` |
-| `warningEnabled` | 是否启用低轨道警告 | `true` |
-| `warningThreshold` | 低轨道警告阈值 (Periapsis < 大气高度 * (1.0 + 阈值)) | `0.2` |
-| `reentryDestroySeconds` | 未加载载具进入大气层后销毁的倒计时秒数 | `60.0` |
+按存档的选项位于 **难度设置 → 空间天气与大气轨道衰减**（创建或编辑存档时）。鼠标悬停各项可查看说明。
 
 ## 公共 API | Public API
 

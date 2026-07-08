@@ -86,25 +86,7 @@ In the stock game, vessels in a vacuum never experience drag. This mod changes t
 
 ## Configuration
 
-Besides the in-game UI, advanced configuration can be done by editing:
-`GameData/SpaceWeatherAndAtmosphericOrbitalDecay/Config/Settings.cfg`
-
-| Setting | Description | Default |
-| :--- | :--- | :--- |
-| `stormDecayRate` | Base decay rate during solar storms | `1.5e-7` |
-| `stormDistanceScaling` | Does storm intensity scale with distance from Sun | `true` |
-| `naturalDecayEnabled` | Enable natural atmospheric decay | `true` |
-| `naturalDecayMultiplier` | Multiplier for natural decay force | `1.0` |
-| `naturalDecayAltitudeCutoff` | Max altitude multiplier for natural decay (Relative to Atmo Height) | `10.0` |
-| `exosphereFitStart` | Start of the upper-atmosphere density fit window (fraction of atmosphere height) | `0.80` |
-| `exosphereFitEnd` | End of the upper-atmosphere density fit window (fraction of atmosphere height) | `0.90` |
-| `exosphereScaleHeightMin` | Minimum extrapolated scale height (fraction of atmosphere height) | `0.03` |
-| `exosphereScaleHeightMax` | Maximum extrapolated scale height (fraction of atmosphere height) | `0.30` |
-| `exosphereFitSamples` | Samples used to fit the upper-atmosphere `ln(density)` slope | `8` |
-| `orbitAverageSamples` | Samples used for orbit-averaged drag estimates | `24` |
-| `warningEnabled` | Enable low orbit warnings | `true` |
-| `warningThreshold` | Low orbit warning threshold (Periapsis < AtmoHeight * (1.0 + Threshold)) | `0.2` |
-| `reentryDestroySeconds` | Countdown seconds until an unloaded vehicle is destroyed after entering the atmosphere | `60.0` |
+Per-save options are under **Difficulty Settings → Space Weather & Atmospheric Orbital Decay** when creating or editing a game. Hover each option for details.
 
 ## Public API
 

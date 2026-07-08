@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using KSP.Localization;
 
@@ -12,7 +11,6 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private double lastUT;
 
         // Configuration Variables
-        private bool debugMode = false;
         private double stormDecayRate = 1.5e-7;
         private bool stormDistanceScaling = true;
 
@@ -48,24 +46,23 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private bool debugForceStorm = false;
         
         // UI Settings
-        private float uiScale = 1.0f;
-        private int fontSize = 13;
-        private const float baseWindowWidth = 500f;
-        private const int baseFontSize = 13;
-        private const float windowRightMargin = 20f;
+        private float _lastUiScaleFactor = -1f;
+        private const int FontSize = 18;
+        private const float BaseWindowWidth = 600f;
+        private const float WindowRightMargin = 20f;
         private bool showSettings = false;
-        private KeyCode toggleKey = KeyCode.Q;
-        private bool isRebinding = false;
 
         // Cached GUIStyles for DrawWindow (rebuilt when fontSize changes)
         private GUIStyle _cachedBold;
         private GUIStyle _cachedNormal;
+        private GUIStyle _cachedRow;
         private GUIStyle _cachedRed;
         private GUIStyle _cachedGreen;
         private GUIStyle _cachedYellow;
         private GUIStyle _cachedSubHeader;
         private GUIStyle _cachedVesselNameStyle;
         private GUIStyle _cachedButton;
+        private GUIStyle _cachedBoxStyle;
         private int _cachedFontSizeForStyles = -1;
         
         // UI Filter
@@ -84,6 +81,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         private const float BODY_POPUP_MAX_WIDTH = 350f;
         private const float BODY_POPUP_DEFAULT_WIDTH = 220f;
         private const float BODY_POPUP_LIST_HEIGHT = 340f;
+        private const float VESSEL_LIST_HEIGHT = 600f;
+        private const float VESSEL_ENTRY_SPACING = 4f;
 
         // Caching for Performance
         private Dictionary<Guid, double> cachedDecayTimesPe = new Dictionary<Guid, double>();
@@ -102,102 +101,35 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         void Start()
         {
-            lastUT = Planetarium.GetUniversalTime();
+            if (TryGetUniversalTime(out double startUt))
+                lastUT = startUt;
             KerbalismIntegration.Initialize();
-            LoadSettings();
-            LoadUISettings();
+            SyncSettingsFromParameters();
         }
 
-        void LoadSettings()
+        void SyncSettingsFromParameters()
         {
-            // Look for the configuration node
-            ConfigNode[] nodes = GameDatabase.Instance.GetConfigNodes("ORBITAL_DECAY");
-            if (nodes != null && nodes.Length > 0)
-            {
-                ConfigNode cfg = nodes[0];
+            SwaodGameplayParameters parameters = SwaodGameplayParameters.Instance;
+            if (parameters == null)
+                return;
 
-                // Storm
-                cfg.TryGetValue("stormDecayRate", ref stormDecayRate);
-                cfg.TryGetValue("stormDistanceScaling", ref stormDistanceScaling);
+            parameters.ApplyTo(
+                ref stormDecayRate,
+                ref stormDistanceScaling,
+                ref naturalDecayEnabled,
+                ref naturalDecayMultiplier,
+                ref naturalDecayAltitudeCutoff,
+                ref exosphereFitStart,
+                ref exosphereFitEnd,
+                ref exosphereScaleHeightMin,
+                ref exosphereScaleHeightMax,
+                ref exosphereFitSamples,
+                ref orbitAverageSamples,
+                ref warningEnabled,
+                ref warningThreshold,
+                ref reentryDestroySeconds);
 
-                // Natural
-                cfg.TryGetValue("naturalDecayEnabled", ref naturalDecayEnabled);
-                cfg.TryGetValue("naturalDecayMultiplier", ref naturalDecayMultiplier);
-                cfg.TryGetValue("naturalDecayAltitudeCutoff", ref naturalDecayAltitudeCutoff);
-                cfg.TryGetValue("exosphereFitStart", ref exosphereFitStart);
-                cfg.TryGetValue("exosphereFitEnd", ref exosphereFitEnd);
-                cfg.TryGetValue("exosphereScaleHeightMin", ref exosphereScaleHeightMin);
-                cfg.TryGetValue("exosphereScaleHeightMax", ref exosphereScaleHeightMax);
-                cfg.TryGetValue("exosphereFitSamples", ref exosphereFitSamples);
-                cfg.TryGetValue("orbitAverageSamples", ref orbitAverageSamples);
-
-                // Warnings
-                cfg.TryGetValue("warningEnabled", ref warningEnabled);
-                cfg.TryGetValue("warningThreshold", ref warningThreshold);
-                cfg.TryGetValue("reentryDestroySeconds", ref reentryDestroySeconds);
-                if (reentryDestroySeconds <= 0) reentryDestroySeconds = 60.0;
-
-                Debug.Log($"[KerbalismOrbitalDecay] Settings Loaded: StormRate={stormDecayRate}, NatEnabled={naturalDecayEnabled}, Warn={warningEnabled}");
-            }
-            else
-            {
-                Debug.Log("[KerbalismOrbitalDecay] No settings file found, using defaults.");
-            }
-        }
-
-        void LoadUISettings()
-        {
-            string path = KSPUtil.ApplicationRootPath + "GameData/SpaceWeatherAndAtmosphericOrbitalDecay/PluginData/UISettings.cfg";
-            if (File.Exists(path))
-            {
-                ConfigNode node = ConfigNode.Load(path);
-                if (node != null)
-                {
-                    if (node.HasValue("uiScale")) 
-                    {
-                        float s;
-                        if (float.TryParse(node.GetValue("uiScale"), out s)) uiScale = Mathf.Clamp(s, 0.5f, 3.0f);
-                    }
-                    if (node.HasValue("fontSize")) 
-                    {
-                        int f;
-                        if (int.TryParse(node.GetValue("fontSize"), out f)) fontSize = Mathf.Clamp(f, 8, 40);
-                    }
-                    
-                    if (node.HasValue("toggleKey"))
-                    {
-                        try { toggleKey = (KeyCode)Enum.Parse(typeof(KeyCode), node.GetValue("toggleKey")); }
-                        catch { toggleKey = KeyCode.Q; }
-                    }
-
-                    float x = 0, y = 0;
-                    bool hasPos = false;
-                    if (node.HasValue("windowX")) { float.TryParse(node.GetValue("windowX"), out x); hasPos = true; }
-                    if (node.HasValue("windowY")) { float.TryParse(node.GetValue("windowY"), out y); hasPos = true; }
-                    
-                    if (hasPos)
-                    {
-                        windowRect = new Rect(x, y, GetWindowWidthForFontSize(fontSize), 0);
-                        isWindowInitialized = true;
-                    }
-                }
-            }
-        }
-
-        void SaveUISettings()
-        {
-            ConfigNode node = new ConfigNode("UI_SETTINGS");
-            node.AddValue("uiScale", uiScale);
-            node.AddValue("fontSize", fontSize);
-            node.AddValue("toggleKey", toggleKey.ToString());
-            node.AddValue("windowX", windowRect.x);
-            node.AddValue("windowY", windowRect.y);
-            
-            string dir = KSPUtil.ApplicationRootPath + "GameData/SpaceWeatherAndAtmosphericOrbitalDecay/PluginData/";
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            
-            node.Save(dir + "UISettings.cfg");
-            ScreenMessages.PostScreenMessage(Localizer.Format("#SWAOD_Msg_UISaved"), 3.0f, ScreenMessageStyle.UPPER_CENTER);
+            Debug.Log($"[KerbalismOrbitalDecay] Settings Loaded: StormRate={stormDecayRate}, NatEnabled={naturalDecayEnabled}, Warn={warningEnabled}");
         }
 
         void Update()
@@ -213,20 +145,27 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             // Initialize Window Position (Right side of screen)
             if (!isWindowInitialized)
             {
-                float initialWidth = GetWindowWidthForFontSize(fontSize);
-                windowRect = new Rect(Screen.width - initialWidth - windowRightMargin, 100, initialWidth, 0);
+                float initialWidth = GetWindowWidthForFontSize(FontSize);
+                Vector2 screen = UIScale.GuiScreenSize();
+                windowRect = new Rect(screen.x - initialWidth - WindowRightMargin, 100, initialWidth, 0);
                 isWindowInitialized = true;
             }
 
-            // Toggle UI with Alt + UserKey
-            if ((Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)) && Input.GetKeyDown(toggleKey))
+            var parameters = SwaodParameters.Instance;
+            if (parameters != null && parameters.IsHotkeyPressed())
             {
                 showGui = !showGui;
                 uiCacheDirty = true;
                 uiLastRefreshTime = -1f;
             }
 
-            double currentUT = Planetarium.GetUniversalTime();
+            if (!TryGetUniversalTime(out double currentUT))
+                return;
+            if (lastUT <= 0d)
+            {
+                lastUT = currentUT;
+                return;
+            }
             double dt = currentUT - lastUT;
             lastUT = currentUT;
 
@@ -239,7 +178,8 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                 Vessel v = FlightGlobals.Vessels[i];
                 if (!IsValidVessel(v)) continue;
 
-                bool stormActive = KerbalismIntegration.IsStormInProgress(v) || debugForceStorm;
+                bool stormActive = KerbalismIntegration.IsStormInProgress(v) ||
+                    (SwaodParameters.IsDebugModeEnabled && debugForceStorm);
                 if ((naturalDecayEnabled || stormActive) && !vesselDecayDisabled.Contains(v.id))
                 {
                     ApplyNaturalDecay(v, dt, currentUT, stormActive);
@@ -250,6 +190,20 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             if (showGui)
             {
                 RefreshUiCache(false);
+            }
+        }
+
+        private static bool TryGetUniversalTime(out double universalTime)
+        {
+            universalTime = 0d;
+            try
+            {
+                universalTime = Planetarium.GetUniversalTime();
+                return true;
+            }
+            catch (NullReferenceException)
+            {
+                return false;
             }
         }
 
