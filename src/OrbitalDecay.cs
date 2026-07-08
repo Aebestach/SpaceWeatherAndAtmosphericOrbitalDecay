@@ -101,6 +101,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         void Start()
         {
+            SwaodParameters.Instance?.ApplyAutoUiScale();
             if (TryGetUniversalTime(out double startUt))
                 lastUT = startUt;
             KerbalismIntegration.Initialize();

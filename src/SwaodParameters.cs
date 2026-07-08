@@ -16,6 +16,11 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
         public override int SectionOrder => 1;
         public override bool HasPresets => false;
 
+        [GameParameters.CustomParameterUI(
+            "#LOC_SWAOD_ParamUiScaleAuto",
+            toolTip = "#LOC_SWAOD_ParamUiScaleAuto_tip")]
+        public bool uiScaleAuto = true;
+
         [GameParameters.CustomFloatParameterUI(
             "#LOC_SWAOD_ParamUiScalePercent",
             toolTip = "#LOC_SWAOD_ParamUiScalePercent_tip",
@@ -23,7 +28,7 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
             maxValue = 150f,
             stepCount = 100,
             displayFormat = "N0")]
-        public float uiScalePercent = 75f;
+        public float uiScalePercent = 100f;
 
         [GameParameters.CustomParameterUI(
             "#LOC_SWAOD_ParamDebugMode",
@@ -88,8 +93,43 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
 
         public override void OnLoad(ConfigNode node)
         {
+            bool hadAutoFlag = node != null && node.HasValue("uiScaleAuto");
+            bool hadUiScale = node != null && node.HasValue("uiScalePercent");
             base.OnLoad(node);
             instance = null;
+
+            if (!hadAutoFlag)
+            {
+                uiScaleAuto = !hadUiScale ||
+                    Mathf.Approximately(uiScalePercent, 100f) ||
+                    Mathf.Approximately(uiScalePercent, 80f) ||
+                    Mathf.Approximately(uiScalePercent, 75f);
+            }
+
+            ApplyAutoUiScale();
+        }
+
+        internal void ApplyAutoUiScale()
+        {
+            if (!uiScaleAuto)
+                return;
+            uiScalePercent = UIScale.DefaultUiScalePercent;
+        }
+
+        public override bool Enabled(MemberInfo member, GameParameters parameters)
+        {
+            var swaod = parameters?.CustomParams<SwaodParameters>();
+            if (swaod != null && swaod.uiScaleAuto)
+                swaod.ApplyAutoUiScale();
+            return true;
+        }
+
+        public override bool Interactible(MemberInfo member, GameParameters parameters)
+        {
+            var swaod = parameters?.CustomParams<SwaodParameters>();
+            if (member.Name == "uiScalePercent" && swaod != null && swaod.uiScaleAuto)
+                return false;
+            return true;
         }
 
         public override IList ValidValues(MemberInfo member)
