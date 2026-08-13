@@ -73,15 +73,9 @@ namespace SpaceWeatherAndAtmosphericOrbitalDecay
                     pendingDestroyNextMessageTimes.Remove(v.id);
             }
 
-            // Loaded vessels already inside the atmosphere are handed off to stock
-            // aero above. For loaded SUB_ORBITAL craft still in space:
-            // - PeA in (0, atmDepth): former orbit being captured — keep decaying
-            // - PeA <= 0: ballistic launch/coast — do not apply mod decay
+            // Loaded non-orbiting craft: stock aero in atmosphere, skip Keplerian decay.
             if (v.loaded && v.situation != Vessel.Situations.ORBITING)
-            {
-                if (o.PeA <= 0.0 || o.PeA >= atmDepth)
-                    return;
-            }
+                return;
 
             double maxAlt = atmDepth * naturalDecayAltitudeCutoff;
             if (o.PeA > maxAlt) return;
